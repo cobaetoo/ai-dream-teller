@@ -1,19 +1,11 @@
 import type { Metadata } from 'next';
+import { DreamTellerClient } from '@/components/features/dream-teller/dream-teller-client';
 
 export const metadata: Metadata = {
-  title: 'AI Dream Teller - 꿈 해몽 시작하기',
-  description: '전문 분야를 선택하고 꿈 해몽을 받아보세요.',
+  title: 'AI Dream Teller - 꿈 해석 시작하기',
+  description: '원하는 전문 분야를 선택하고 당신만의 매력적이고 심층적인 꿈 해석 리포트를 받아보세요.',
 };
 
-const DreamTellerPage = () => {
-  // TODO: 프로덕트 상세 (분야 선택, 꿈 입력, 구매 옵션) UI 구현
-  // FIX: [API 연동] POST /api/orders 연동
-  
-  return (
-    <main className="min-h-screen">
-      <h1>프로덕트 상세 페이지</h1>
-    </main>
-  );
-};
-
-export default DreamTellerPage;
+export default function DreamTellerPage() {
+  return <DreamTellerClient />;
+}
