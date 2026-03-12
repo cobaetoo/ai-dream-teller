@@ -32,7 +32,7 @@ const MOCK_RESULT = {
   title: "빛의 미로가 된 거대한 도서관",
   analysis: `이 꿈은 당신의 무의식 속에서 **새로운 지식이나 경험에 대한 열망이 폭발적으로 분출**되고 있음을 보여줍니다. \n\n도서관이라는 공간은 칼 융(Carl Jung)의 분석심리학적 관점에서 인류의 집단 무의식 또는 당신이 쌓아온 개인의 지적 자산을 상징합니다. 책에서 빛이 나고 미로처럼 변하는 것은 너무 많은 기회나 선택지가 주어졌을 때 발생하는 혼란을 의미하지만, 두려움보다는 흥미를 느꼈다는 점에서 \n당신은 현재의 혼란스러운 상황을 '도전적이고 긍정적인 성장의 기회'로 받아들이고 있습니다.\n\n즉, 현재 직면한 복잡한 문제들을 두려워하지 말고 호기심을 갖고 탐색해 나가라는 내면의 강력한 지지 메시지로 해몽할 수 있습니다.`,
   expertLabel: "칼 융 분석",
-  date: new Date(),
+  date: new Date("2026-03-12"),
   imageUrl:
     "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=800&auto=format&fit=crop",
 };
@@ -44,9 +44,9 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
 
   // 회원이 기록한 해몽 내역 날짜 (더미)
   const pastDates = [
-    new Date(),
-    new Date(new Date().setDate(new Date().getDate() - 2)),
-    new Date(new Date().setDate(new Date().getDate() - 15)),
+    new Date("2026-03-12"),
+    new Date("2026-03-10"),
+    new Date("2026-02-25"),
   ];
 
   const handleCopyLink = async () => {
@@ -234,6 +234,7 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
               <Calendar
                 mode="multiple"
                 selected={pastDates}
+                locale={ko}
                 className="rounded-lg bg-transparent"
                 modifiers={{
                   hasDream: pastDates,

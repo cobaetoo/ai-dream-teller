@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 // 더미 유저 데이터
 const MOCK_USER = {
@@ -32,31 +33,47 @@ const MOCK_USER = {
 const MOCK_HISTORY = [
   {
     id: "ord_1",
-    date: new Date(),
+    date: new Date("2026-03-12"),
     title: "빛의 미로가 된 거대한 도서관",
     summary: "새로운 지식이나 경험에 대한 열망이 폭발적으로 분출되고 있음을 상징...",
     thumbnail: "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=200&auto=format&fit=crop",
   },
   {
     id: "ord_2",
-    date: new Date(new Date().setDate(new Date().getDate() - 2)),
+    date: new Date("2026-03-10"),
     title: "끝없는 바다 위를 나는 고래",
     summary: "억압된 감정의 해방과 자유로운 자아로의 회귀를 의미하는 매우 긍정적인 꿈...",
     thumbnail: "https://images.unsplash.com/photo-1518173946687-a4c8a983378a?q=80&w=200&auto=format&fit=crop",
   },
   {
+    id: "ord_text_only",
+    date: new Date("2026-03-05"),
+    title: "아무런 소리도 들리지 않는 하얀 방",
+    summary: "외부의 자극으로부터 자신을 격리시키고 휴식을 취하고 싶은 심리적 상태를 반영하는 정적인 꿈입니다. 이미지 분석 없이 텍스트 심층 해몽만 진행된 케이스입니다.",
+    thumbnail: null, // 이미지 없음 예시
+  },
+  {
     id: "ord_3",
-    date: new Date(new Date().setDate(new Date().getDate() - 15)),
+    date: new Date("2026-02-25"),
     title: "구름 위로 솟은 번쩍이는 금색 성",
     summary: "당신이 현재 추구하고 있는 목표가 비현실적일 수 있음을 경고함과 동시에...",
     thumbnail: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=200&auto=format&fit=crop",
   },
+  {
+    id: "ord_4",
+    date: new Date("2026-02-20"),
+    title: "끝을 알 수 없는 지하 계단",
+    summary: "자신의 무의식 깊은 곳을 탐구하고자 하는 욕구와 미지의 영역에 대한 두려움이 공존하는 상태입니다.",
+    thumbnail: "https://images.unsplash.com/photo-1505330622279-bf7d7fc918f4?q=80&w=200&auto=format&fit=crop",
+  },
 ];
 
 const MyPageClient = () => {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [nickname, setNickname] = useState(MOCK_USER.nickname);
   const [tempNickname, setTempNickname] = useState(MOCK_USER.nickname);
+  const [visibleCount, setVisibleCount] = useState(3);
 
   // 해몽 기록이 있는 날짜들
   const historyDates = MOCK_HISTORY.map((h) => h.date);
@@ -64,6 +81,16 @@ const MyPageClient = () => {
   const handleUpdateNickname = () => {
     setNickname(tempNickname);
     setIsEditing(false);
+  };
+
+  const handleLogout = () => {
+    // 실제 로그아웃 로직 처리 후 메인으로 리다이렉트
+    alert("로그아웃 되었습니다.");
+    router.push("/");
+  };
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => prev + 3);
   };
 
   return (
@@ -152,6 +179,7 @@ const MyPageClient = () => {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={handleLogout}
                     className="w-full text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
@@ -187,6 +215,7 @@ const MyPageClient = () => {
                 <Calendar
                   mode="multiple"
                   selected={historyDates}
+                  locale={ko}
                   className="bg-transparent"
                   modifiers={{
                     hasDream: historyDates,
@@ -212,20 +241,27 @@ const MyPageClient = () => {
                 </h3>
               </div>
               <div className="space-y-4">
-                {MOCK_HISTORY.map((item) => (
+                {MOCK_HISTORY.slice(0, visibleCount).map((item) => (
                   <Link
                     key={item.id}
                     href={`/dream-result/${item.id}`}
                     className="block group"
                   >
                     <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-purple-200 transition-all duration-300 flex items-center gap-6">
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md">
-                        <Image
-                          src={item.thumbnail}
-                          alt={item.title}
-                          fill
-                          className="object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
+                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md bg-linear-to-br from-indigo-50 to-fuchsia-50 flex items-center justify-center border border-purple-100/50">
+                        {item.thumbnail ? (
+                          <Image
+                            src={item.thumbnail}
+                            alt={item.title}
+                            fill
+                            className="object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="relative flex items-center justify-center w-full h-full">
+                            <div className="absolute inset-x-0 inset-y-0 bg-linear-to-br from-purple-500/5 to-pink-500/5 animate-pulse" />
+                            <Sparkles className="w-8 h-8 text-purple-300 relative z-10 group-hover:scale-110 group-hover:text-purple-400 transition-all duration-500" />
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 text-xs font-bold text-purple-600/70">
@@ -246,6 +282,18 @@ const MyPageClient = () => {
                   </Link>
                 ))}
               </div>
+
+              {visibleCount < MOCK_HISTORY.length && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleLoadMore}
+                    className="rounded-full px-8 py-6 border-2 border-slate-100 text-slate-500 hover:border-purple-100 hover:text-purple-600 hover:bg-purple-50 transition-all font-bold cursor-pointer"
+                  >
+                    내역 더보기
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
