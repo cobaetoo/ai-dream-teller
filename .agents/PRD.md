@@ -143,3 +143,91 @@
 - 회원 and 비회원 유저 리스트 표 페이지
 - 회원과 비회원을 필터링해서 볼 수 있는 기능
 - 각 회원의 결제 여부를 확인할 수 있음
+
+## 6. 백엔드 요구사항 및 API 구조 (Backend Requirements & API Structure)
+
+프론트엔드와 독립적으로 기능할 수 있도록 RESTful하고 직관적인 API 구조로 Next.js Route Handlers(API Routes)를 설계합니다.
+
+### 6.1 인증 및 권한 (Auth)
+- `POST /api/auth/guest`
+  - 설명: 전화번호와 비밀번호를 전달받아 비회원용 세션 토큰을 발급합니다.
+  - 반환값: 비회원 인증 토큰.
+
+### 6.2 사용자 (Users)
+- `GET /api/users/me`
+  - 설명: 현재 로그인한 회원/비회원의 프로필 및 기본 정보를 반환합니다.
+- `PATCH /api/users/me`
+  - 설명: 사용자의 프로필 정보(예: 닉네임)를 수정합니다.
+
+### 6.3 주문 및 결제 (Orders & Payments)
+- `GET /api/orders`
+  - 설명: 현재 로그인한 사용자의 구매 이력 리스트를 반환합니다. (마이페이지 용도)
+- `POST /api/orders`
+  - 설명: 꿈 입력 데이터와 선택된 옵션, 전문 분야 등을 기반으로 주문서(Pending Order)를 생성합니다.
+- `GET /api/orders/[id]`
+  - 설명: 개별 주문에 대한 구매 정보 및 (생성 완료된) 꿈 해몽 결과를 반환합니다.
+- `GET /api/orders/guest`
+  - 설명: 발급받은 비회원 세션을 인증하여 해당 비회원의 주문 내역 리스트를 반환합니다.
+- `POST /api/payments/confirm`
+  - 설명: 토스페이먼츠 결제 위젯을 통해 승인된 결제 검증 및 완료 처리를 수행합니다. (결제 성공 시 AI 해몽 생성 로직 비동기 호출)
+
+### 6.4 피드 (Feeds)
+- `GET /api/feeds`
+  - 설명: 사용자에게 노출할 이전 유저들의 공개 해몽 결과 목록을 페이지네이션과 함께 반환합니다. (메인 페이지, `/feeds` 용도)
+
+### 6.5 AI 처리 (AI Processing)
+- `POST /api/ai/generate`
+  - 설명: 결제가 완료된 주문에 대해 Gemini API를 호출하여 해몽 텍스트와 AI 이미지를 생성하고 DB에 저장합니다. (서버 내부 호출 권장)
+
+### 6.6 관리자 (Admin)
+- `GET /api/admin/metrics`
+  - 설명: 관리자 대시보드용으로 기간별 매출과 주문 통계 데이타를 반환합니다.
+- `GET /api/admin/orders`
+  - 설명: 시스템 전체의 주문 발생 내역 리스트를 페이지네이션 및 필터와 함께 반환합니다.
+- `GET /api/admin/orders/[id]`
+  - 설명: 상세 주문 내역에서 원본 꿈 텍스트, 사용자 정보, 결제 상태 및 해몽 결과를 반환합니다.
+- `POST /api/admin/orders/[id]/regenerate`
+  - 설명: 결과물 품질 이슈 등을 이유로 LLM 해몽 재생성을 트리거합니다.
+- `GET /api/admin/users`
+  - 설명: 회원 가입 유저와 비회원 유저 리스트를 조회하고, 최근 결제 여부 등을 함께 반환합니다.
+
+## 7. 데이터베이스 스키마 (Database Schema)
+
+Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.users`)과 연결되는 어플리케이션 전용 Public 테이블을 정의합니다. MECE 원칙에 따라 명확히 역할을 분리했습니다.
+
+### 7.1 Users (`users`)
+회원(소셜)과 비회원의 정보를 통합 관리하는 테이블입니다.
+- **`id`** (UUID, Primary Key, **Not Null**): 고유 식별자 (Supabase `auth.users`의 PK와 1:1 매핑)
+- **`role`** (String, **Not Null**): 사용자 역할 (`member`, `guest`, `admin`)
+- **`provider`** (String, **Not Null**): 가입 경로 (`google`, `kakao`, `guest`)
+- **`email`** (String, Null): 회원 이메일 (소셜 로그인 회원용)
+- **`nickname`** (String, Null): 사용자 닉네임
+- **`phone_number`** (String, Null): 비회원 식별 및 주문 조회용 전화번호
+- **`guest_password_hash`** (String, Null): 비회원용 암호화된 비밀번호
+- **`created_at`** (Timestamp, **Not Null**): 계정 생성 일시
+- **`updated_at`** (Timestamp, **Not Null**): 정보 최종 수정 일시
+
+### 7.2 Orders (`orders`)
+사용자의 꿈 분석 요청 및 토스페이먼츠 결제 내역을 매핑하는 테이블입니다.
+- **`id`** (UUID, Primary Key, **Not Null**): 내부 시스템의 고유 주문 식별자
+- **`order_number`** (String, Unique, **Not Null**): 토스페이먼츠의 `orderId`로 사용될 고유 주문 번호
+- **`user_id`** (UUID, Foreign Key, **Not Null**): 결제를 진행한 `users.id` 참조
+- **`total_amount`** (Integer, **Not Null**): 총 결제 금액
+- **`payment_status`** (String, **Not Null**): 결제 상태 (`pending`, `paid`, `failed`, `refunded`)
+- **`payment_key`** (String, Null): 토스페이먼츠 승인 키 (결제 성공 시 저장)
+- **`dream_content`** (Text, **Not Null**): 유저가 직접 입력한 원본 꿈 내용
+- **`expert_field`** (String, **Not Null**): 선택한 해몽 전문 분야 (`freud`, `jung`, `neuroscience`, `gestalt` 등)
+- **`includes_image`** (Boolean, **Not Null**): AI 이미지 생성 옵션 구매 여부
+- **`created_at`** (Timestamp, **Not Null**): 주문서 생성 일시
+- **`updated_at`** (Timestamp, **Not Null**): 결제 및 상태 업데이트 일시
+
+### 7.3 Dream Results (`dream_results`)
+결제 완료 후 생성되는 AI 해몽 결과물과 이미지 URL, 피드 공개 여부를 담당하는 테이블입니다.
+- **`id`** (UUID, Primary Key, **Not Null**): 고유 식별자
+- **`order_id`** (UUID, Foreign Key / Unique, **Not Null**): 매칭되는 `orders.id` 참조 (1:1 관계)
+- **`analysis_status`** (String, **Not Null**): 해몽 진행 상태 (`processing`, `completed`, `failed`)
+- **`analysis_text`** (Text, Null): AI(Gemini)가 생성해낸 심층 해몽 텍스트
+- **`image_url`** (String, Null): AI(Gemini)가 묘사해준 꿈 이미지 URL (옵션 미구매 시 Null)
+- **`is_public`** (Boolean, **Not Null**): Feed 페이지 공유 노출 여부 (`true` or `false`)
+- **`created_at`** (Timestamp, **Not Null**): 해몽 작업 최초 생성 일시
+- **`updated_at`** (Timestamp, **Not Null**): 해몽 결과 또는 노출 여부 수정(Update) 통제용 일시
