@@ -18,13 +18,13 @@ const Header = () => {
       {!isLoggedIn ? (
         <>
           {/* 비회원 */}
-          <Link href="/guest-check">
-            <Button variant="ghost" className="w-full justify-start md:w-auto md:justify-center text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/guest-check" className="cursor-pointer">
+            <Button variant="ghost" className="w-full justify-start md:w-auto md:justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
               비회원 주문조회
             </Button>
           </Link>
-          <Link href="/auth">
-            <Button className="w-full md:w-auto bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/20 transition-all">
+          <Link href="/auth" className="cursor-pointer">
+            <Button className="w-full md:w-auto bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/20 transition-all cursor-pointer">
               로그인
             </Button>
           </Link>
@@ -37,7 +37,7 @@ const Header = () => {
               <AvatarImage src="" alt="user avatar" />
               <AvatarFallback className="bg-purple-900 text-purple-200">ME</AvatarFallback>
             </Avatar>
-            <span className="md:hidden font-medium text-purple-100">마이페이지</span>
+            <span className="md:hidden font-medium text-purple-900">마이페이지</span>
           </Link>
         </>
       )}
@@ -45,12 +45,12 @@ const Header = () => {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/60 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-black/5 bg-background/60 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* 공통: 홈 로고 */}
-        <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-          <div className="w-8 h-8 rounded-full bg-linear-to-br from-purple-500 via-fuchsia-500 to-pink-500 shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
-          <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-linear-to-r from-purple-400 to-pink-400">
+        <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80 cursor-pointer">
+          <div className="w-8 h-8 rounded-full bg-linear-to-br from-purple-500 via-fuchsia-500 to-pink-500 shadow-[0_0_15px_rgba(168,85,247,0.5)] cursor-pointer" />
+          <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-linear-to-r from-purple-400 to-pink-400 cursor-pointer">
             AI Dream Teller
           </span>
         </Link>
@@ -63,10 +63,10 @@ const Header = () => {
         {/* 모바일 햄버거 메뉴 (Sheet) */}
         <div className="md:hidden">
           <Sheet>
-            <SheetTrigger render={<Button variant="ghost" size="icon" className="text-white hover:bg-white/10" />}>
-              <Menu className="h-6 w-6" />
+            <SheetTrigger render={<Button variant="ghost" size="icon" className="text-zinc-800 hover:bg-black/5 cursor-pointer" />}>
+              <Menu className="h-6 w-6 cursor-pointer" />
             </SheetTrigger>
-            <SheetContent side="top" className="bg-zinc-950/95 border-b border-zinc-800 backdrop-blur-xl w-full rounded-b-2xl">
+            <SheetContent side="top" className="bg-white/95 border-b border-black/10 backdrop-blur-xl w-full rounded-b-2xl">
               <SheetTitle className="sr-only">모바일 메뉴</SheetTitle>
               <div className="flex flex-col gap-4 mt-8">
                 <NavLinks />

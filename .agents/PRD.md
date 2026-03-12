@@ -23,8 +23,8 @@
 
 ## 4. 디자인 가이드(Design Guide)
 
-- **Theme**: Mystical, Vibrant, Fluid
-- **Colors**: Deep Purple, Neon Blue, Soft Pink (Aurora Gradients)
+- **Theme**: Mystical, Vibrant, Fluid (Bright Ivory Base)
+- **Colors**: Ivory Background, Light Purple, Soft Pink, Sky Blue (Light Aurora Gradients)
 - **Interactions**: 부드러운 스크롤, 호버 시 빛나는 효과, 로딩 시 몽환적인 애니메이션
 
 ## 5. 프론트엔드 요구사항 (Frontend Requirements)
@@ -57,8 +57,8 @@
 
 - 서비스 한줄 소개
 - 프로덕트 상세로 넘어가는 후킹 버튼(프로덕트 상세 페이지로 이동)
-- 서비스에 대한 여러 feature 소개
-- 이미 풀이된 이전 유저들의 꿈 해몽 텍스트 및 AI 이미지 예시 리스트 섹션(더보기 -> 예시 리스트 피드로 이동)
+- 서비스에 대한 여러 feature 소개 (전문 심리 분석, AI 시각화, 직관적 통찰, 기록/공유 등 Bento Grid UI 적용)
+- 이미 풀이된 이전 유저들의 꿈 해몽 텍스트 및 AI 이미지 예시 리스트 섹션 (더보기 -> 예시 리스트 피드로 이동 / 개별 카드 클릭 -> 해당 해몽 결과 확인 페이지로 이동)
 
 2. **프로덕트 상세 페이지 (`/dream-teller`)**
 
@@ -151,17 +151,20 @@
 프론트엔드와 독립적으로 기능할 수 있도록 RESTful하고 직관적인 API 구조로 Next.js Route Handlers(API Routes)를 설계합니다.
 
 ### 6.1 인증 및 권한 (Auth)
+
 - `POST /api/auth/guest`
   - 설명: 전화번호와 비밀번호를 전달받아 비회원용 세션 토큰을 발급합니다.
   - 반환값: 비회원 인증 토큰.
 
 ### 6.2 사용자 (Users)
+
 - `GET /api/users/me`
   - 설명: 현재 로그인한 회원/비회원의 프로필 및 기본 정보를 반환합니다.
 - `PATCH /api/users/me`
   - 설명: 사용자의 프로필 정보(예: 닉네임)를 수정합니다.
 
 ### 6.3 주문 및 결제 (Orders & Payments)
+
 - `GET /api/orders`
   - 설명: 현재 로그인한 사용자의 구매 이력 리스트를 반환합니다. (마이페이지 용도)
 - `POST /api/orders`
@@ -174,14 +177,17 @@
   - 설명: 토스페이먼츠 결제 위젯을 통해 승인된 결제 검증 및 완료 처리를 수행합니다. (결제 성공 시 AI 해몽 생성 로직 비동기 호출)
 
 ### 6.4 피드 (Feeds)
+
 - `GET /api/feeds`
   - 설명: 사용자에게 노출할 이전 유저들의 공개 해몽 결과 목록을 페이지네이션과 함께 반환합니다. (메인 페이지, `/feeds` 용도)
 
 ### 6.5 AI 처리 (AI Processing)
+
 - `POST /api/ai/generate`
   - 설명: 결제가 완료된 주문에 대해 Gemini API를 호출하여 해몽 텍스트와 AI 이미지를 생성하고 DB에 저장합니다. (서버 내부 호출 권장)
 
 ### 6.6 관리자 (Admin)
+
 - `GET /api/admin/metrics`
   - 설명: 관리자 대시보드용으로 기간별 매출과 주문 통계 데이타를 반환합니다.
 - `GET /api/admin/orders`
@@ -198,7 +204,9 @@
 Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.users`)과 연결되는 어플리케이션 전용 Public 테이블을 정의합니다. MECE 원칙에 따라 명확히 역할을 분리했습니다.
 
 ### 7.1 Users (`users`)
+
 회원(소셜)과 비회원의 정보를 통합 관리하는 테이블입니다.
+
 - **`id`** (UUID, Primary Key, **Not Null**): 고유 식별자 (Supabase `auth.users`의 PK와 1:1 매핑)
 - **`role`** (String, **Not Null**): 사용자 역할 (`member`, `guest`, `admin`)
 - **`provider`** (String, **Not Null**): 가입 경로 (`google`, `kakao`, `guest`)
@@ -210,7 +218,9 @@ Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.
 - **`updated_at`** (Timestamp, **Not Null**): 정보 최종 수정 일시
 
 ### 7.2 Orders (`orders`)
+
 사용자의 꿈 분석 요청 및 토스페이먼츠 결제 내역을 매핑하는 테이블입니다.
+
 - **`id`** (UUID, Primary Key, **Not Null**): 내부 시스템의 고유 주문 식별자
 - **`order_number`** (String, Unique, **Not Null**): 토스페이먼츠의 `orderId`로 사용될 고유 주문 번호
 - **`user_id`** (UUID, Foreign Key, **Not Null**): 결제를 진행한 `users.id` 참조
@@ -224,7 +234,9 @@ Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.
 - **`updated_at`** (Timestamp, **Not Null**): 결제 및 상태 업데이트 일시
 
 ### 7.3 Dream Results (`dream_results`)
+
 결제 완료 후 생성되는 AI 해몽 결과물과 이미지 URL, 피드 공개 여부를 담당하는 테이블입니다.
+
 - **`id`** (UUID, Primary Key, **Not Null**): 고유 식별자
 - **`order_id`** (UUID, Foreign Key / Unique, **Not Null**): 매칭되는 `orders.id` 참조 (1:1 관계)
 - **`analysis_status`** (String, **Not Null**): 해몽 진행 상태 (`processing`, `completed`, `failed`)
