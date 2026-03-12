@@ -1,19 +1,13 @@
-import type { Metadata } from 'next';
+import { Metadata } from "next";
+import { GuestCheckClient } from "@/components/features/guest/guest-check-client";
 
 export const metadata: Metadata = {
-  title: 'AI Dream Teller - 비회원 주문 조회',
-  description: '비회원 주문 및 해몽 내역을 조회합니다.',
+  title: "비회원 주문 내역 | AI Dream Teller",
+  description: "비회원 주문 내역을 조회하고 꿈 해석 결과를 확인하세요.",
 };
 
 const GuestCheckPage = () => {
-  // TODO: 비회원 주문 내역 리스트 표출 UI
-  // FIX: [API 연동] GET /api/orders/guest 연동
-  
-  return (
-    <main className="min-h-screen">
-      <h1>비회원 주문 조회 페이지</h1>
-    </main>
-  );
+  return <GuestCheckClient />;
 };
 
 export default GuestCheckPage;
