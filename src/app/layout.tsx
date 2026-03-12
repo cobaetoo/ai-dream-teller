@@ -46,7 +46,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-background text-foreground`}
       >
         <Header />
-        <main className="flex-1 flex flex-col relative w-full overflow-hidden">
+        <main className="flex-1 flex flex-col relative w-full">
           {children}
         </main>
         <Footer />
