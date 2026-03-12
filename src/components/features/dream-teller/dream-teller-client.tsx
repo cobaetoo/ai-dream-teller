@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Brain, Sparkles, Image as ImageIcon, AlertCircle, ArrowRight, Zap, Eye, Asterisk, Expand, Shrink, ChevronRight, CheckCircle2 } from 'lucide-react';
 
@@ -65,11 +66,19 @@ export const DreamTellerClient = () => {
   const [dreamContent, setDreamContent] = useState('');
   const [includeImage, setIncludeImage] = useState(true); // AI 이미지 생성 옵션 기본 체크
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 비회원 정보 상태
+  const [phone, setPhone] = useState("");
+  const [guestPassword, setGuestPassword] = useState("");
+  
+  // TODO: 실제 인증 상태에 따라 초기값 설정 필요. 현재는 개발 모드 토글로 관리
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   // 아코디언 요소들을 위한 Ref
   const step1Ref = useRef<HTMLDivElement>(null);
   const step2Ref = useRef<HTMLDivElement>(null);
   const step3Ref = useRef<HTMLDivElement>(null);
+  const step4Ref = useRef<HTMLDivElement>(null);
   
   // 아코디언 상태 관리 (초기에는 1단계만 열림)
   const [openItems, setOpenItems] = useState<string[]>(['step-1']);
@@ -78,13 +87,14 @@ export const DreamTellerClient = () => {
   const imagePrice = 500;
   const totalPrice = basePrice + (includeImage ? imagePrice : 0);
 
-  const isAllExpanded = openItems.length === 3;
+  const isAllExpanded = openItems.length === (isLoggedIn ? 3 : 4);
 
   const toggleExpandAll = () => {
     if (isAllExpanded) {
       setOpenItems(['step-1']);
     } else {
-      setOpenItems(['step-1', 'step-2', 'step-3']);
+      const allSteps = isLoggedIn ? ['step-1', 'step-2', 'step-3'] : ['step-1', 'step-2', 'step-3', 'step-4'];
+      setOpenItems(allSteps);
     }
   };
 
@@ -98,6 +108,7 @@ export const DreamTellerClient = () => {
         'step-1': step1Ref,
         'step-2': step2Ref,
         'step-3': step3Ref,
+        'step-4': step4Ref,
       };
       
       const targetRef = refMap[nextStep];
@@ -109,14 +120,21 @@ export const DreamTellerClient = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. 꿈 내용 체크
     if (!dreamContent.trim()) {
       alert("꿈 내용을 입력해주세요.");
-      
-      // 만약 꿈 내용 입력창(step-2)이 접혀있다면 강제로 열어줍니다.
-      if (!openItems.includes('step-2')) {
-        handleNextStep('step-2');
-      }
+      if (!openItems.includes('step-2')) handleNextStep('step-2');
       return;
+    }
+
+    // 2. 비회원 정보 체크 (로그인 안된 경우)
+    if (!isLoggedIn) {
+      if (!phone.trim() || guestPassword.length !== 4) {
+        alert("비회원 주문을 위해 전화번호와 비밀번호 4자리를 입력해주세요.");
+        if (!openItems.includes('step-4')) handleNextStep('step-4');
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -130,6 +148,21 @@ export const DreamTellerClient = () => {
       {/* Background Decorations */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-purple-200/40 rounded-full blur-[120px] pointer-events-none mix-blend-multiply opacity-50 animate-pulse" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-pink-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply opacity-50 animate-pulse [animation-delay:2s]" />
+
+      {/* Dev Tools - 회원/비회원 토글 */}
+      <div className="fixed top-[80px] right-4 z-40 bg-white/80 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 flex flex-col gap-2">
+        <span className="text-xs font-bold text-indigo-600 text-center uppercase tracking-wider">
+          Dev Tools
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsLoggedIn(!isLoggedIn)}
+          className="text-xs h-8 cursor-pointer border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 font-bold"
+        >
+          {isLoggedIn ? "회원 모드 (Step 4 숨김)" : "비회원 (Step 4 노출)"}
+        </Button>
+      </div>
 
       <div className="max-w-3xl mx-auto relative z-10">
         
@@ -328,10 +361,80 @@ export const DreamTellerClient = () => {
                       </Label>
                     </CardContent>
                   </Card>
+
+                  <div className="mt-6 flex justify-end">
+                    <Button 
+                      type="button" 
+                      onClick={() => handleNextStep(isLoggedIn ? 'step-3' : 'step-4')}
+                      className="rounded-full bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
+                    >
+                      {isLoggedIn ? '결제 정보 확인' : '비회원 정보 입력'} <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </div>
-          </Accordion>
+
+            {/* Step 4: 비회원 정보 입력 (로그인 하지 않은 경우에만 노출) */}
+            {!isLoggedIn && (
+              <div ref={step4Ref}>
+                <AccordionItem value="step-4" className="bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all">
+                  <AccordionTrigger className="hover:no-underline py-4">
+                    <div className="flex items-center gap-4 text-left">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-4') ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>4</div>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-900">비회원 정보 입력</h2>
+                        {!openItems.includes('step-4') && phone && (
+                          <p className="text-sm text-indigo-600 font-medium mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> 
+                            조회 정보 입력됨
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4 pb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="guest-phone" className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">연락처</Label>
+                        <Input
+                          id="guest-phone"
+                          type="tel"
+                          placeholder="010-0000-0000"
+                          value={phone}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            const val = e.target.value.replace(/[^0-9]/g, "");
+                            let formatted = val;
+                            if (val.length > 3 && val.length <= 7) formatted = `${val.slice(0, 3)}-${val.slice(3)}`;
+                            else if (val.length > 7) formatted = `${val.slice(0, 3)}-${val.slice(3, 7)}-${val.slice(7, 11)}`;
+                            setPhone(formatted);
+                          }}
+                          maxLength={13}
+                          className="h-14 bg-white/50 border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="guest-pw" className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">조회용 비밀번호 (4자리)</Label>
+                        <Input
+                          id="guest-pw"
+                          type="password"
+                          placeholder="0000"
+                          value={guestPassword}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGuestPassword(e.target.value.replace(/[^0-9]/g, ""))}
+                          maxLength={4}
+                          className="h-14 bg-white/50 border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/5 transition-all font-medium tracking-[0.3em]"
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-4 text-[12px] text-slate-400 flex items-start gap-1.5 px-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      나중에 비회원 주문 조회 시 필요한 정보입니다. 꼭 기억해 주세요!
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </div>
+            )}
+           </Accordion>
 
           {/* Warning Notes */}
           <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-5 flex items-start gap-3 mt-8">

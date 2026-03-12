@@ -18,7 +18,7 @@ const Header = () => {
       {!isLoggedIn ? (
         <>
           {/* 비회원 */}
-          <Link href="/guest-check" className="cursor-pointer">
+          <Link href="/guest-login" className="cursor-pointer">
             <Button variant="ghost" className="w-full justify-start md:w-auto md:justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
               비회원 주문조회
             </Button>
