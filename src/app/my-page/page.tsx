@@ -1,19 +1,13 @@
-import type { Metadata } from 'next';
+import MyPageClient from "@/components/features/my-page/my-page-client";
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'AI Dream Teller - 마이페이지',
-  description: '구매 내역과 해몽 결과를 확인하세요.',
+  title: "마이페이지 | AI Dream Teller",
+  description: "나의 지난 꿈 기록과 해몽 분석 결과를 한눈에 확인하세요.",
 };
 
 const MyPage = () => {
-  // TODO: 마이페이지 (사용자 정보, 캘린더, 주문내역 리스트) UI 구현
-  // FIX: [API 연동] GET /api/users/me 및 GET /api/orders 연동
-  
-  return (
-    <main className="min-h-screen">
-      <h1>회원 마이페이지</h1>
-    </main>
-  );
+  return <MyPageClient />;
 };
 
 export default MyPage;
