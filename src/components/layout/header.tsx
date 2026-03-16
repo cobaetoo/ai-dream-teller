@@ -11,12 +11,16 @@ import {
   SheetTrigger,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
 
 const Header = () => {
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClient();
 
-  // 뷰포트 변경 시 드로어가 열려있다면 자동으로 닫음 (md 중단점 768px 기준)
   useEffect(() => {
+    // 뷰포트 변경 시 드로어가 열려있다면 자동으로 닫음 (md 중단점 768px 기준)
     const handleResize = () => {
       if (window.innerWidth >= 768) {
         setOpen(false);
@@ -24,11 +28,28 @@ const Header = () => {
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    
+    // 초기 사용자 정보 가져오기
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
 
-  // TODO: 실제 인증 상태에 따라 isLoggedIn 변경
-  const isLoggedIn = false;
+    // 인증 상태 변경 리스너 등록
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      subscription.unsubscribe();
+    };
+  }, [supabase.auth]);
+
+  const isLoggedIn = !!user;
 
   const NavLinks = () => (
     <>
@@ -51,8 +72,10 @@ const Header = () => {
           {/* 회원 */}
           <Link href="/my-page" className="w-full md:w-auto flex mt-2 md:mt-0 items-center gap-2">
             <Avatar className="h-9 w-9 border-2 border-purple-500/50 hover:border-purple-400 cursor-pointer transition-colors">
-              <AvatarImage src="" alt="user avatar" />
-              <AvatarFallback className="bg-purple-900 text-purple-200">ME</AvatarFallback>
+              <AvatarImage src={user?.user_metadata?.avatar_url} referrerPolicy="no-referrer" alt="user avatar" />
+              <AvatarFallback className="bg-purple-900 text-purple-200">
+                {user?.user_metadata?.full_name?.[0] || 'ME'}
+              </AvatarFallback>
             </Avatar>
             <span className="md:hidden font-medium text-purple-900">마이페이지</span>
           </Link>

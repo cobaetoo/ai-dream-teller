@@ -1,28 +1,68 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+/**
+ * 미들웨어를 통해 Supabase 세션을 갱신하고 보호된 라우트 접근을 제어합니다.
+ */
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // 현재 사용자 정보 확인 (세션 갱신 포함)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
 
-  // 보호된 라우트 목록
-  const protectedRoutes = ['/my-page'];
-
-  if (protectedRoutes.some(route => pathname.startsWith(route))) {
-    // TODO: 실제 서비스에서는 supabase 세션이나 쿠키 등을 확인
-    // 현재는 E2E 가이드에 따라 리다이렉트 기능 동작을 증명하기 위해 
-    // 임시로 'auth-token' 쿠키가 없으면 로그인 페이지로 이동시킴
-    const authToken = request.cookies.get('sb-access-token'); // Supabase 기본 쿠키 예시
-
-    if (!authToken) {
-      const loginUrl = new URL('/auth', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+  // 보호된 라우트 접근 제어 (PRD: /my-page)
+  if (pathname.startsWith("/my-page") && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth";
+    url.searchParams.set("error", "unauthorized");
+    return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: ['/my-page/:path*'],
+  matcher: [
+    /*
+     * 아래 경로를 제외한 모든 요청에 대해 미들웨어 실행:
+     * - _next/static (정적 파일)
+     * - _next/image (이미지 최적화 파일)
+     * - favicon.ico (파비콘)
+     * - public 폴더 하위 이미지 등
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

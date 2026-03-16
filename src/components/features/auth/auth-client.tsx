@@ -16,10 +16,19 @@ const AuthClient = () => {
   }, []);
 
   const handleLogin = (provider: "google" | "kakao") => {
-    // TODO: Supabase Auth 연동 예정
-    console.log(`${provider} login started...`);
-    const redirectPath = "/dream-teller";
-    router.push(redirectPath);
+    // 서버 사이드 로그인을 트리거하기 위해 폼을 동적으로 생성하여 POST 전송
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/auth/login";
+    
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "provider";
+    input.value = provider;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
   };
 
   if (!mounted) return null;

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  User,
+  User as UserIcon,
   LogOut,
   Mail,
   Calendar as CalendarIcon,
@@ -15,21 +15,17 @@ import {
   Check,
   History,
   Brain,
-  Sparkles
+  Sparkles,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import { User } from "@supabase/supabase-js";
 
-// 더미 유저 데이터
-const MOCK_USER = {
-  nickname: "꿈꾸는 여행자",
-  email: "dreamer@example.com",
-  provider: "kakao", // 'kakao' | 'google'
-};
-
-// 더미 구매 내역 데이터
+// 더미 구매 내역 데이터 (실제 데이터 연동 전까지 유지)
 const MOCK_HISTORY = [
   {
     id: "ord_1",
@@ -70,28 +66,92 @@ const MOCK_HISTORY = [
 
 const MyPageClient = () => {
   const router = useRouter();
+  const supabase = createClient();
+  const [user, setUser] = useState<User | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [nickname, setNickname] = useState(MOCK_USER.nickname);
-  const [tempNickname, setTempNickname] = useState(MOCK_USER.nickname);
+  const [nickname, setNickname] = useState("");
+  const [tempNickname, setTempNickname] = useState("");
   const [visibleCount, setVisibleCount] = useState(3);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // 유저 정보 가져오기
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+        const name = user.user_metadata?.full_name || user.user_metadata?.nickname || "사용자";
+        setNickname(name);
+        setTempNickname(name);
+      } else {
+        router.push("/auth");
+      }
+    };
+    getUser();
+  }, [supabase.auth, router]);
 
   // 해몽 기록이 있는 날짜들
   const historyDates = MOCK_HISTORY.map((h) => h.date);
 
-  const handleUpdateNickname = () => {
-    setNickname(tempNickname);
-    setIsEditing(false);
+  const handleUpdateNickname = async () => {
+    if (!tempNickname.trim() || tempNickname === nickname) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // 1. Auth Metadata 업데이트
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { full_name: tempNickname, nickname: tempNickname }
+      });
+
+      if (authError) throw authError;
+
+      // 2. Public.users 테이블 업데이트
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({ nickname: tempNickname })
+        .eq('id', user?.id);
+
+      if (dbError) throw dbError;
+
+      setNickname(tempNickname);
+      setIsEditing(false);
+      alert("닉네임이 성공적으로 수정되었습니다.");
+    } catch (error: any) {
+      console.error("Nickname update failed:", error);
+      alert("닉네임 수정 중 오류가 발생했습니다: " + error.message);
+      setTempNickname(nickname);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleLogout = () => {
-    // 실제 로그아웃 로직 처리 후 메인으로 리다이렉트
-    alert("로그아웃 되었습니다.");
-    router.push("/");
+  const handleLogout = async () => {
+    if (!confirm("로그아웃 하시겠습니까?")) return;
+
+    try {
+      // 서버 사이드 세션 정리를 위해 API 호출
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+      
+      // 클라이언트 사이드 로그아웃 및 상태 초기화
+      await supabase.auth.signOut();
+      
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const handleLoadMore = () => {
     setVisibleCount((prev) => prev + 3);
   };
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-[#faf9f6]/50 selection:bg-purple-200 py-12 px-4 relative overflow-hidden">
@@ -112,7 +172,16 @@ const MyPageClient = () => {
               <div className="relative group mb-6">
                 <div className="absolute inset-0 bg-linear-to-br from-purple-500 to-pink-500 rounded-full blur-md opacity-20 group-hover:opacity-40 transition-opacity" />
                 <div className="relative w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden border-2 border-white shadow-inner">
-                  <User className="w-12 h-12 text-slate-300" />
+                  {user.user_metadata?.avatar_url ? (
+                    <Image 
+                      src={user.user_metadata.avatar_url} 
+                      alt="profile" 
+                      fill 
+                      className="object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="w-12 h-12 text-slate-300" />
+                  )}
                 </div>
               </div>
 
@@ -128,14 +197,15 @@ const MyPageClient = () => {
                           maxLength={10}
                           className="w-full px-3 py-1.5 bg-slate-50 border border-purple-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-center"
                           autoFocus
+                          disabled={isUpdating}
                           placeholder="닉네임 입력 (최대 10자)"
                         />
                         <button
                           onClick={handleUpdateNickname}
-                          disabled={!tempNickname.trim()}
+                          disabled={!tempNickname.trim() || isUpdating}
                           className="p-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
                         >
-                          <Check className="w-4 h-4" />
+                          {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         </button>
                       </div>
                       <span className="text-[10px] text-slate-400">최대 10자까지 입력 가능</span>
@@ -155,28 +225,30 @@ const MyPageClient = () => {
                   )}
                   <div className="flex items-center justify-center gap-1 text-sm text-slate-400 font-medium">
                     <Mail className="w-3.5 h-3.5" />
-                    <span>{MOCK_USER.email}</span>
+                    <span className="truncate max-w-[180px]">{user.email}</span>
                   </div>
                 </div>
 
                 <div className="pt-2 flex justify-center">
                   <div className="px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100 flex items-center gap-2">
-                    {MOCK_USER.provider === "kakao" ? (
+                    {user.app_metadata?.provider === "kakao" ? (
                       <div className="w-5 h-5 bg-[#FEE500] rounded-full flex items-center justify-center">
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 4C7.58172 4 4 6.83502 4 10.332C4 12.5938 5.48532 14.562 7.74902 15.6881L6.80005 19.1666C6.73273 19.4124 7.02891 19.6097 7.23725 19.4719L11.3327 16.762C11.5518 16.7767 11.7744 16.7842 12 16.7842C16.4183 16.7842 20 13.9492 20 10.4522C20 6.95519 16.4183 4.12012 12 4.12012V4Z" />
                         </svg>
                       </div>
                     ) : (
-                      <div className="w-5 h-5 border border-slate-200 rounded-full flex items-center justify-center bg-white">
-                        <svg viewBox="0 0 48 48" className="w-3 h-3">
+                      <div className="w-5 h-5 border border-slate-200 rounded-full flex items-center justify-center bg-white overflow-hidden">
+                        <svg viewBox="0 0 48 48" className="w-4 h-4">
                           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                           <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.13-.45-4.63H24v9.06h12.94c-.58 2.84-2.2 5.23-4.62 6.84l7.4 5.74c4.32-3.99 6.26-9.92 6.26-17.01z"/>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.4-5.74c-2.28 1.52-5.18 2.42-8.49 2.42-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                         </svg>
                       </div>
                     )}
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      {MOCK_USER.provider} Login
+                      {user.app_metadata?.provider} Login
                     </span>
                   </div>
                 </div>
