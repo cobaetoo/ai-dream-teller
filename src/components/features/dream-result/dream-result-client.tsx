@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Script from "next/script";
+import { useRouter } from "next/navigation";
 
 // 카카오 SDK 타입 정의
 declare global {
@@ -36,11 +37,14 @@ const MOCK_RESULT = {
   imageUrl:
     "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=800&auto=format&fit=crop",
 };
-
 export const DreamResultClient = ({ orderId }: { orderId: string }) => {
+  const router = useRouter();
   // 실제 서비스라면 세션에서 확인하겠지만, 기획 확인을 위해 토글 버튼으로 제공
   const [isMember, setIsMember] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // 시뮬레이션: orderId가 'invalid'로 시작하면 결과 없음 처리
+  const isNotFound = orderId.startsWith("invalid");
 
   // 회원이 기록한 해몽 내역 날짜 (더미)
   const pastDates = [
@@ -94,6 +98,30 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
       alert("카카오톡 공유 기능을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     }
   };
+
+  if (isNotFound) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[#faf9f6]">
+        <div className="max-w-md w-full text-center space-y-6 bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
+          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
+            <MessageCircleQuestion className="w-10 h-10 text-slate-300" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-900">해몽 결과를 찾을 수 없습니다</h1>
+            <p className="text-slate-500 leading-relaxed">
+              요청하신 주문 번호({orderId})와 일치하는 <br/> 데이터가 없거나 접근 권한이 없습니다.
+            </p>
+          </div>
+          <Button 
+            className="w-full h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold"
+            onClick={() => router.push('/')}
+          >
+            메인 페이지로 돌아가기
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#faf9f6] selection:bg-purple-200 w-full relative">

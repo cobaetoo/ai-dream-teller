@@ -119,20 +119,26 @@ const MyPageClient = () => {
               <div className="w-full space-y-4">
                 <div className="space-y-1">
                   {isEditing ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={tempNickname}
-                        onChange={(e) => setTempNickname(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-purple-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-center"
-                        autoFocus
-                      />
-                      <button
-                        onClick={handleUpdateNickname}
-                        className="p-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={tempNickname}
+                          onChange={(e) => setTempNickname(e.target.value)}
+                          maxLength={10}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-purple-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-center"
+                          autoFocus
+                          placeholder="닉네임 입력 (최대 10자)"
+                        />
+                        <button
+                          onClick={handleUpdateNickname}
+                          disabled={!tempNickname.trim()}
+                          className="p-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-slate-400">최대 10자까지 입력 가능</span>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2">

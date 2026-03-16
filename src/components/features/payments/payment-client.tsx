@@ -17,7 +17,24 @@ export const PaymentClient = () => {
   const [paymentWidget, setPaymentWidget] = useState<any>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
+
+  // 네트워크 상태 감지
+  useEffect(() => {
+    setIsOffline(!window.navigator.onLine);
+
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 영수증 디자인에 표시할 목업 데이터 (추후 이전 페이지에서 넘겨받은 상태로 대체)
   const orderInfo = {
@@ -199,8 +216,27 @@ export const PaymentClient = () => {
             )}
             
             {/* 결제 위젯 렌더링 영역 */}
-            <div id="payment-method" className="w-full" />
-            <div id="agreement" className="w-full mt-4" />
+            <div id="payment-method" className={`w-full ${isOffline ? 'opacity-20 grayscale pointer-events-none' : ''}`} />
+            <div id="agreement" className={`w-full mt-4 ${isOffline ? 'opacity-20 grayscale pointer-events-none' : ''}`} />
+
+            {isOffline && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 backdrop-blur-xs z-20 rounded-xl p-6 text-center">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">네트워크 끊김 감지</h3>
+                <p className="text-slate-600 max-w-xs">
+                  현재 오프라인 상태입니다. <br/> 결제를 진행하려면 인터넷 연결을 확인해 주세요.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="mt-6 border-slate-200"
+                  onClick={() => window.location.reload()}
+                >
+                  페이지 새로고침
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* 환불 규정 및 안내 */}
@@ -217,9 +253,11 @@ export const PaymentClient = () => {
               size="lg" 
               className="w-full h-16 text-lg rounded-2xl bg-slate-900 hover:bg-slate-800 text-white shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handlePayment}
-              disabled={isInitializing || isRequesting}
+              disabled={isInitializing || isRequesting || isOffline}
             >
-              {isRequesting ? (
+              {isOffline ? (
+                "네트워크 연결 필요"
+              ) : isRequesting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   결제 요청 중...

@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +13,20 @@ import {
 } from '@/components/ui/sheet';
 
 const Header = () => {
+  const [open, setOpen] = useState(false);
+
+  // 뷰포트 변경 시 드로어가 열려있다면 자동으로 닫음 (md 중단점 768px 기준)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // TODO: 실제 인증 상태에 따라 isLoggedIn 변경
   const isLoggedIn = false;
 
@@ -62,7 +79,7 @@ const Header = () => {
 
         {/* 모바일 햄버거 메뉴 (Sheet) */}
         <div className="md:hidden">
-          <Sheet>
+          <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="text-zinc-800 hover:bg-black/5 cursor-pointer" />}>
               <Menu className="h-6 w-6 cursor-pointer" />
             </SheetTrigger>

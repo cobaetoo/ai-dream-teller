@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Brain, Sparkles, Image as ImageIcon, AlertCircle, ArrowRight, Zap, Eye, Asterisk, Expand, Shrink, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Brain, Sparkles, Image as ImageIcon, AlertCircle, ArrowRight, Zap, Eye, Asterisk, Expand, Shrink, ChevronRight, CheckCircle2, Lock } from 'lucide-react';
 
 const EXPERT_FIELDS = [
   {
@@ -87,18 +87,53 @@ export const DreamTellerClient = () => {
   const imagePrice = 500;
   const totalPrice = basePrice + (includeImage ? imagePrice : 0);
 
+  const isStepValid = (step: string): boolean => {
+    switch (step) {
+      case 'step-1':
+        return !!selectedField;
+      case 'step-2':
+        return dreamContent.trim().length >= 20;
+      case 'step-3':
+        return isStepValid('step-2');
+      case 'step-4':
+        return isStepValid('step-3');
+      default:
+        return true;
+    }
+  };
+
   const isAllExpanded = openItems.length === (isLoggedIn ? 3 : 4);
 
   const toggleExpandAll = () => {
     if (isAllExpanded) {
       setOpenItems(['step-1']);
     } else {
-      const allSteps = isLoggedIn ? ['step-1', 'step-2', 'step-3'] : ['step-1', 'step-2', 'step-3', 'step-4'];
+      // 유효한 단계까지만 펼치기
+      const allSteps = ['step-1'];
+      if (isStepValid('step-1')) allSteps.push('step-2');
+      if (isStepValid('step-2')) allSteps.push('step-3');
+      if (!isLoggedIn && isStepValid('step-3')) allSteps.push('step-4');
       setOpenItems(allSteps);
     }
   };
 
   const handleNextStep = (nextStep: string) => {
+    // 이전 단계가 유효한지 확인
+    const prevStepMap: Record<string, string> = {
+      'step-2': 'step-1',
+      'step-3': 'step-2',
+      'step-4': 'step-3',
+    };
+
+    const prevStep = prevStepMap[nextStep];
+    if (prevStep && !isStepValid(prevStep)) {
+      // 유효성 검사 실패 시 처리 (현재는 alert, 추후 toast로 대체 가능)
+      if (prevStep === 'step-2') {
+        alert("꿈 내용을 최소 20자 이상 입력해주세요 (현재: " + dreamContent.trim().length + "자)");
+      }
+      return;
+    }
+
     // 다음 스텝 열기
     setOpenItems((prev) => Array.from(new Set([...prev, nextStep])));
     
@@ -202,7 +237,20 @@ export const DreamTellerClient = () => {
           {/* Accordion List */}
           <Accordion 
             value={openItems} 
-            onValueChange={setOpenItems}
+            onValueChange={(value) => {
+              // 사용자가 직접 클릭해서 열려고 할 때 제어
+              const lastAdded = value.find(v => !openItems.includes(v));
+              if (lastAdded) {
+                const prevStepMap: Record<string, string> = {
+                  'step-2': 'step-1',
+                  'step-3': 'step-2',
+                  'step-4': 'step-3',
+                };
+                const prevStep = prevStepMap[lastAdded];
+                if (prevStep && !isStepValid(prevStep)) return;
+              }
+              setOpenItems(value);
+            }}
             className="space-y-4"
           >
             {/* Step 1: 전문가 선택 */}
@@ -270,13 +318,21 @@ export const DreamTellerClient = () => {
 
             {/* Step 2: 꿈 텍스트 작성 */}
             <div ref={step2Ref}>
-              <AccordionItem value="step-2" className="bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all">
-                <AccordionTrigger className="hover:no-underline py-4">
+              <AccordionItem value="step-2" className={`bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all ${!isStepValid('step-1') ? 'opacity-60' : ''}`}>
+                <AccordionTrigger 
+                  className="hover:no-underline py-4"
+                  disabled={!isStepValid('step-1')}
+                >
                   <div className="flex items-center gap-4 text-left">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-2') ? 'bg-pink-100 text-pink-700' : 'bg-slate-100 text-slate-700'}`}>2</div>
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-2') ? 'bg-pink-100 text-pink-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {!isStepValid('step-1') ? <Lock className="w-4 h-4" /> : '2'}
+                    </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-900">꿈의 내용을 자유롭게 적어주세요</h2>
-                      {!openItems.includes('step-2') && dreamContent.length > 0 && (
+                      <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        꿈의 내용을 자유롭게 적어주세요
+                        {!isStepValid('step-1') && <span className="text-xs font-normal text-slate-400">학문적 관점 선택 필요</span>}
+                      </h2>
+                      {!openItems.includes('step-2') && dreamContent.trim().length >= 20 && (
                         <p className="text-sm text-pink-600 font-medium mt-1 flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> 
                           작성 완료 ({dreamContent.length}자)
@@ -292,9 +348,10 @@ export const DreamTellerClient = () => {
                       className="min-h-[240px] resize-y p-6 text-lg rounded-2xl border-black/10 bg-white/80 backdrop-blur-sm focus-visible:ring-pink-500/50 focus-visible:border-pink-500 transition-all shadow-xs group-hover:shadow-md"
                       value={dreamContent}
                       onChange={(e) => setDreamContent(e.target.value)}
+                      maxLength={3000}
                     />
                     <div className="absolute bottom-4 right-4 text-xs text-slate-400 font-medium bg-white/80 px-2 py-1 rounded-md backdrop-blur-sm pointer-events-none">
-                      {dreamContent.length} / 최소 20자 권장
+                      {dreamContent.length.toLocaleString()} / 3,000자 (최소 20자 권장)
                     </div>
                   </div>
 
@@ -313,11 +370,21 @@ export const DreamTellerClient = () => {
 
             {/* Step 3: 옵션 및 가격선택 */}
             <div ref={step3Ref}>
-              <AccordionItem value="step-3" className="bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all">
-                <AccordionTrigger className="hover:no-underline py-4">
+              <AccordionItem value="step-3" className={`bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all ${!isStepValid('step-2') ? 'opacity-60' : ''}`}>
+                <AccordionTrigger 
+                  className="hover:no-underline py-4"
+                  disabled={!isStepValid('step-2')}
+                >
                   <div className="flex items-center gap-4 text-left">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-3') ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'}`}>3</div>
-                    <h2 className="text-xl font-bold text-slate-900">결제 옵션 선택</h2>
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-3') ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {!isStepValid('step-2') ? <Lock className="w-4 h-4" /> : '3'}
+                    </div>
+                    <div className="flex flex-col">
+                      <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        결제 옵션 선택
+                        {!isStepValid('step-2') && <span className="text-xs font-normal text-slate-400">꿈 내용 입력(20자 이상) 필요</span>}
+                      </h2>
+                    </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pt-4 pb-6">
@@ -375,15 +442,22 @@ export const DreamTellerClient = () => {
               </AccordionItem>
             </div>
 
-            {/* Step 4: 비회원 정보 입력 (로그인 하지 않은 경우에만 노출) */}
             {!isLoggedIn && (
               <div ref={step4Ref}>
-                <AccordionItem value="step-4" className="bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all">
-                  <AccordionTrigger className="hover:no-underline py-4">
+                <AccordionItem value="step-4" className={`bg-white/70 backdrop-blur-md rounded-2xl border border-black/5 px-6 py-2 shadow-xs data-[state=open]:shadow-md transition-all ${!isStepValid('step-3') ? 'opacity-60' : ''}`}>
+                  <AccordionTrigger 
+                    className="hover:no-underline py-4"
+                    disabled={!isStepValid('step-3')}
+                  >
                     <div className="flex items-center gap-4 text-left">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-4') ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>4</div>
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-colors ${openItems.includes('step-4') ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {!isStepValid('step-3') ? <Lock className="w-4 h-4" /> : '4'}
+                      </div>
                       <div>
-                        <h2 className="text-xl font-bold text-slate-900">비회원 정보 입력</h2>
+                        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                          비회원 정보 입력
+                          {!isStepValid('step-3') && <span className="text-xs font-normal text-slate-400">결제 옵션 선택 필요</span>}
+                        </h2>
                         {!openItems.includes('step-4') && phone && (
                           <p className="text-sm text-indigo-600 font-medium mt-1 flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" /> 
