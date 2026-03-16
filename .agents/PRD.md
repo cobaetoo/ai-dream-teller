@@ -204,12 +204,22 @@
   - 설명: 현재 로그인한 사용자의 구매 이력 리스트를 반환합니다. (마이페이지 용도)
 - `POST /api/orders`
   - 설명: 꿈 입력 데이터와 선택된 옵션, 전문 분야 등을 기반으로 주문서(Pending Order)를 생성합니다.
+  - **비회원 처리**: 비회원 주문 시 `phone_number`와 `guest_password`를 전달받아 `users` 테이블에 guest 레코드를 생성하거나 기존 정보를 연동합니다.
+  - **금액 검증**: 클라이언트에서 전달된 `total_amount`가 서버의 옵션 가격 정책과 일치하는지 반드시 검증하여 위변조를 차단합니다.
 - `GET /api/orders/[id]`
   - 설명: 개별 주문에 대한 구매 정보 및 (생성 완료된) 꿈 해몽 결과를 반환합니다.
+  - **권한 검증**: 요청자의 세션(회원/비회원)이 해당 주문의 소유주인지 확인하는 로직을 포함합니다.
 - `GET /api/orders/guest`
   - 설명: 발급받은 비회원 세션을 인증하여 해당 비회원의 주문 내역 리스트를 반환합니다.
 - `POST /api/payments/confirm`
-  - 설명: 토스페이먼츠 결제 위젯을 통해 승인된 결제 검증 및 완료 처리를 수행합니다. (결제 성공 시 AI 해몽 생성 로직 비동기 호출)
+  - 설명: 토스페이먼츠 결제 승인 API를 호출하여 최종 결제 완료 처리를 수행합니다.
+  - **후속 처리**: 결제 성공 시 주문 상태를 `paid`로 변경하고, AI 해몽 생성 API(`api/ai/generate`)를 비동기 호출합니다.
+- `POST /api/payments/fail`
+  - 설명: 결제 과정에서 발생한 실패 정보를 기록하고 해당 주문서의 상태를 `failed`로 업데이트합니다.
+- `POST /api/payments/cancel`
+  - 설명: 결제 취소 및 환불 요청을 처리합니다. (AI 생성 전 단계 혹은 시스템 장애 시 사용)
+- `POST /api/payments/webhook`
+  - 설명: 토스페이먼츠로부터 결제 상태 변경 알림(가상계좌 입금 완료 등)을 수신하여 처리합니다.
 
 ### 6.4 피드 (Feeds)
 
@@ -260,8 +270,10 @@ Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.
 - **`order_number`** (String, Unique, **Not Null**): 토스페이먼츠의 `orderId`로 사용될 고유 주문 번호
 - **`user_id`** (UUID, Foreign Key, **Not Null**): 결제를 진행한 `users.id` 참조
 - **`total_amount`** (Integer, **Not Null**): 총 결제 금액
-- **`payment_status`** (String, **Not Null**): 결제 상태 (`pending`, `paid`, `failed`, `refunded`)
+- **`payment_status`** (String, **Not Null**): 결제 상태 (`pending`, `paid`, `failed`, `refunded`, `canceled`)
 - **`payment_key`** (String, Null): 토스페이먼츠 승인 키 (결제 성공 시 저장)
+- **`approved_at`** (Timestamp, Null): 토스페이먼츠 결제 승인 시각
+- **`error_message`** (Text, Null): 결제 실패/에러 시 사유 메시지
 - **`dream_content`** (Text, **Not Null**): 유저가 직접 입력한 원본 꿈 내용
 - **`expert_field`** (String, **Not Null**): 선택한 해몽 전문 분야 (`freud`, `jung`, `neuroscience`, `gestalt` 등)
 - **`includes_image`** (Boolean, **Not Null**): AI 이미지 생성 옵션 구매 여부
@@ -316,10 +328,15 @@ Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.
 | 4 | 권한 & 인증 | `POST /api/auth/guest` | 비정상적인 형태의 전화번호(특수문자 포함 등)나 초과 자리수(ex: 100자) 입력 시도 | 400 Bad Request 리턴 및 DB Insert/조회 방어됨 | [ ] | 입력값 검증(Validation) 및 Sanitization 모듈 적용 필요 |
 | 5 | 사용자 관리 | `PATCH /api/users/me` | 다른 유저의 ID를 페이로드에 포함시켜 권한 탈취(IDOR) 시도 | 활성화된 서버 세션을 기준으로만 처리되며 403 Forbidden 리턴 | [ ] | 세션 기반 권한 검증 필수, 클라이언트 전송 ID 무시 원칙 적용 |
 | 6 | 사용자 관리 | `PATCH /api/users/me` | 닉네임 필드에 악성 스크립트(XSS 제로데이 공격) 대량 주입 시도 | DB 저장 과정에서 이스케이프 처리 및 허용된 데이터 포맷으로 치환/거부됨 | [ ] | 데이터 파라미터 필터(Sanitization) 적용 검토 요망 |
-| 7 | 주문 생성 | `POST /api/orders` | 프론트엔드 가격 조작(예: `total_amount=10원`) 및 필수 항목 누락 페이로드 전송 | 백엔드 옵션 가격 교차 검증 실패로 400 에러 및 주문서 생성 실패 | [ ] | 서버 및 DB에 정의된 단가와 페이로드의 교차 검증 로직 필수 |
-| 8 | 결제 검증 | `POST /api/payments/confirm` | 토스페이먼츠 승인 콜백 API를 악의적으로 동일한 `payment_key`로 다중 연속 호출 | DB 트랜잭션 Lock (Idempotency Key) 처리로 단 1회만 결제 승인됨 | [ ] | 결제 상태값 중복 갱신(Race Condition) 방어 로직 필수 |
-| 9 | 주문 조회 | `GET /api/orders/[id]` | 무작위 UUID 형식 대입 및 타인의 결제 완료 주문서 ID를 파라미터 강제 조회 시도 | 토큰 소유권(Ownership) 불일치로 403 / 404 리턴되어 타인 내역 조회 방어됨 | [ ] | RLS (Row Level Security) 또는 백엔드 오너십 검증 기능 추가 필수 |
+| 7 | 주문 생성 | `POST /api/orders` | 프론트엔드 가격 조작(예: 기본 1,500원 + 이미지 500원을 선택했는데 `total_amount=1,500원` 전송) 시도 | 서버 내 고정 단가 정책과 합산 결과 대조 실패로 400 Bad Request 리턴 | [x] | DB 생성 전 초반 조기 검증 로직으로 이전되어 400 Bad Request 에러 정상 리턴 확인 |
+| 8 | 결제 검증 | `POST /api/payments/confirm` | 토스페이먼츠 승인 콜백 API를 악의적으로 동일한 `payment_key`로 다중 연속 호출 | DB 트랜잭션 Lock (Idempotency Key) 처리로 단 1회만 결제 승인됨 | [x] | 유효하지 않거나 중복된 결제 승인 요청 시 토스 API 연동 중단 및 에러 정상 반환 확인 |
+| 9 | 주문 조회 | `GET /api/orders/[id]` | 무작위 UUID 형식 대입 및 타인의 결제 완료 주문서 ID를 파라미터 강제 조회 시도 | 토큰 소유권(Ownership) 불일치로 403 / 404 리턴되어 타인 내역 조회 방어됨 | [x] | 주문 조회에 대한 소유권 및 세션 유효성 검증 실패 시 401/403 등 권한 실패 방어 확인 |
 | 10 | 데이터 피드 | `GET /api/feeds` | 쿼리스트링에 `limit=999999` 같은 과다 요청 및 타입 혼용 쿼리 전송 시도 | 서버 설정된 최대 제한 레코드 값(예: 50개)으로 강제 변환되어 정상 응답 | [ ] | API 쿼리 파라미터 유효성 검증(Zod 등) 및 방어 로직 필요 |
 | 11 | AI 로직 | `POST /api/ai/generate` | 외부 Gemini API의 5xx 에러 장애 발생 및 무응답 타임아웃 지연(10분 초과) 유발 | 서비스 중단 없이 에러 캡처 및 시스템 재시도 큐 대기 상태로 전환(상태 `failed`) | [ ] | 외부 API 통신 타임아웃 제한 설정 및 예외 처리(Error Handling) 폴백 전략 |
 | 12 | 어드민 권한 | `GET /api/admin/*` | 관리자 역할(Role)이 아닌 일반 유저나 만료된 JWT를 삽입하여 관리자 API 강제 호출 | 401 / 403 상태 코드 리턴 등으로 서비스 조회 등 DB 연결 원천 차단 | [ ] | `role='admin'` 컬럼 확인을 포함한 어드민 전용 미들웨어 구성 요망 |
+| 13 | 주문 생성 (비회원) | `POST /api/orders` | 비회원 주문 시 필수 필드(`phone_number`, `guest_password`) 중 하나를 누락하거나 공백 전송 | 400 Bad Request 리턴 및 `users` 테이블에 불완전한 레코드 생성 차단 | [x] | 데이터 포맷 누락 시 400 에러를 반환하며 사용자 및 주문 생성 차단 확인 |
+| 14 | 결제 실패 처리 | `POST /api/payments/fail` | 결제창에서 취소/실패 후 전달된 에러 코드와 메시지를 고의로 누락하거나 변조하여 전송 | 400 Bad Request 리턴 또는 시스템상 `failed` 상태와 함께 `error_message` 필드에 기록 확인 | [x] | 필수 파라미터 부재 및 권한 불일치 시 400 이상 에러를 정상 발현하여 방어 확인 |
+| 15 | 결제 취소 처리 | `POST /api/payments/cancel` | 이미 처리된 주문이나 권한이 없는 타인의 주문에 대해 취소 API 호출 시도 | 403 Forbidden 리턴 및 상태값이 `canceled`로 변경되지 않음을 보장 | [x] | 존재하지 않거나 타인의 주문 취소 요청 시 에러를 뱉으며 상태 변경을 무효화함 |
+| 16 | 결제 웹훅 | `POST /api/payments/webhook` | 토스페이먼츠 서버가 아닌 외부 IP에서 위조된 성공 페이로드를 웹훅 엔드포인트로 전송 시도 | IP 필터링 또는 HMAC 시그니처 검증 실패로 401/403 처리 및 상태 변경 차단 | [x] | 올바른 시크릿 서명이 없는 웹훅 요청의 경우 악의적 접근으로 간주되어 상태 변경 차단 완료 |
+| 17 | 주문 소유권 (IDOR) | `GET /api/orders/[id]` | 비회원이 로그인한 상태에서 자신의 `order_id`가 아닌 다른 비회원의 유효한 `order_id`를 강제 대입 | 403 Forbidden 리턴 (비회원 세션 간에도 철저한 격리 확인) | [x] | 비회원의 경우에도 발급된 세션 권한 내에서만 조회 가능하며, 타 주문(무작위ID 포함) 접근 시 실패 확인 |
 

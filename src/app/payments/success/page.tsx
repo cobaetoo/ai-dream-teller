@@ -1,10 +1,57 @@
-export default function PaymentSuccessPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold mb-4">결제 성공!</h1>
-        <p className="text-muted-foreground">결제가 성공적으로 처리되었습니다.</p>
-      </div>
-    </div>
-  );
+import { redirect } from "next/navigation";
+import { confirmPaymentAction } from "@/app/actions/payment";
+
+interface SuccessPageProps {
+  searchParams: Promise<{
+    paymentKey?: string;
+    orderId?: string;
+    amount?: string;
+  }>;
 }
+
+/**
+ * 결제 성공 후 토스페이먼츠 리다이렉트 URL 처리 페이지
+ * 서버 액션을 직접 호출하여 인증 정보를 유지한 채 결제 승인을 진행합니다.
+ */
+export default async function PaymentSuccessPage({
+  searchParams,
+}: SuccessPageProps) {
+  const { paymentKey, orderId, amount } = await searchParams;
+
+  if (!paymentKey || !orderId || !amount) {
+    console.error("Missing payment parameters");
+    redirect("/?error=payment_missing_params");
+  }
+
+  try {
+    // 내부 API fetch 대신 서버 액션을 직접 호출함 (쿠키/세션 유지됨)
+    const result = await confirmPaymentAction({
+      paymentKey,
+      orderId,
+      amount: Number(amount),
+    });
+
+    if (!result.success) {
+      console.error("Payment confirmation failed:", result.error);
+      redirect(
+        `/?error=payment_confirm_failed&message=${encodeURIComponent(
+          result.error || "unknown"
+        )}`
+      );
+    }
+
+    // 성공 시 사용자 타입에 따라 리다이렉트
+    if (result.isGuest) {
+      redirect("/guest-check");
+    } else {
+      redirect("/my-page");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
+      throw error;
+    }
+    console.error("Critical error in payment success flow:", error);
+    redirect("/?error=internal_server_error_at_success");
+  }
+}
+

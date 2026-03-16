@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { Button } from '@/components/ui/button';
 import { Receipt, AlertCircle, ArrowLeft, Loader2, Scissors } from 'lucide-react';
@@ -12,6 +12,8 @@ const CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "";
 
 export const PaymentClient = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderIdFromUrl = searchParams.get('orderId');
   
   // 상태 관리
   const [paymentWidget, setPaymentWidget] = useState<any>(null);
@@ -20,57 +22,89 @@ export const PaymentClient = () => {
   const [isOffline, setIsOffline] = useState(false);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
+  // 실 결제 정보 상태
+  const [orderInfo, setOrderInfo] = useState<{
+    orderId: string;
+    orderName: string;
+    items: { name: string; price: number }[];
+    totalPrice: number;
+    customerName: string;
+    customerEmail: string;
+  } | null>(null);
+
   // 네트워크 상태 감지
   useEffect(() => {
     setIsOffline(!window.navigator.onLine);
-
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // 영수증 디자인에 표시할 목업 데이터 (추후 이전 페이지에서 넘겨받은 상태로 대체)
-  const orderInfo = {
-    orderId: `dream_test_${Math.floor(Math.random() * 1000000)}`,
-    orderName: "심층 꿈 분석 및 AI 시각화",
-    items: [
-      { name: "전문 심층 해몽 (기본)", price: 1500 },
-      { name: "AI 꿈 시각화 이미지 추가", price: 500 },
-    ],
-    totalPrice: 2000,
-    customerName: "비회원(게스트)",
-    customerEmail: "guest@example.com",
-  };
-
+  // 1. 주문 정보 로드 (실제 백엔드 데이터 불러오기)
   useEffect(() => {
+    async function fetchOrderInfo() {
+      if (!orderIdFromUrl) {
+        console.error("Order ID is missing in URL");
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/orders/${orderIdFromUrl}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "주문 정보를 불러오지 못했습니다.");
+        }
+
+        const order = result.order;
+        setOrderInfo({
+          orderId: order.order_number,
+          orderName: `꿈 해몽 분석 (${order.expert_field})`,
+          items: [
+            { name: "심층 해몽 분석 서비스", price: 1500 },
+            ...(order.includes_image ? [{ name: "AI 이미지 생성 추가", price: 500 }] : []),
+          ],
+          totalPrice: order.total_amount,
+          customerName: "회원", 
+          customerEmail: "",
+        });
+      } catch (err: any) {
+        console.error(err);
+        alert(err.message || "주문 정보 조회 중 오류가 발생했습니다.");
+        router.push("/dream-teller");
+      }
+    }
+
+    fetchOrderInfo();
+  }, [orderIdFromUrl, router]);
+
+  // 2. 토스 결제 위젯 초기화 (orderInfo가 확보된 후)
+  useEffect(() => {
+    if (!orderInfo || !widgetContainerRef.current) return;
+
     let active = true;
 
     async function initializeWidget() {
       try {
         setIsInitializing(true);
-        // SDK 로드
         const tossPayments = await loadTossPayments(CLIENT_KEY);
         
-        // 위젯 인스턴스 생성
-        // 비회원 결제를 가정하여 임의의 customerKey (혹은 ANONYMOUS 식별자)를 사용
-        const widgets = tossPayments.widgets({ customerKey: `guest_${new Date().getTime()}` });
+        // customerKey는 유니크해야 함 (간편결제를 위한 식별자이기도 함)
+        const customerKey = `user_${Math.random().toString(36).slice(2, 11)}`;
+        const widgets = tossPayments.widgets({ customerKey });
         
-        if (!active) return;
+        if (!active || !orderInfo) return;
         
-        // 위젯 금액 설정
         await widgets.setAmount({
           currency: 'KRW',
           value: orderInfo.totalPrice,
         });
 
-        // 위젯 렌더링 병렬 처리
         await Promise.all([
           widgets.renderPaymentMethods({
             selector: "#payment-method",
@@ -92,40 +126,42 @@ export const PaymentClient = () => {
       }
     }
 
-    if (widgetContainerRef.current) {
-      initializeWidget();
-    }
+    initializeWidget();
 
     return () => {
       active = false;
     };
-  }, [orderInfo.totalPrice]);
+  }, [orderInfo]);
 
   const handlePayment = async () => {
-    if (!paymentWidget) return;
+    if (!paymentWidget || !orderInfo) return;
     
     setIsRequesting(true);
     try {
-      // 결제 요청
-      // 성공 시 /success 로 이동, 실패 시 /fail 로 이동 (혹은 뒤로 돌아오도록)
       await paymentWidget.requestPayment({
         orderId: orderInfo.orderId,
         orderName: orderInfo.orderName,
         successUrl: window.location.origin + "/payments/success",
         failUrl: window.location.origin + "/payments/fail",
-        customerEmail: orderInfo.customerEmail,
-        customerName: orderInfo.customerName,
       });
     } catch (error: any) {
-      // 에러 발생 시 처리
       console.error(error);
       setIsRequesting(false);
-      // 토스페이먼츠 에러 코드가 USER_CANCEL인 경우 유저가 창을 닫은 것
       if (error?.code !== 'USER_CANCEL') {
         alert("결제 요청 중 오류가 발생했습니다.");
       }
     }
   };
+
+
+  if (!orderInfo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background/50 backdrop-blur-sm">
+        <Loader2 className="w-12 h-12 text-purple-600 animate-spin mb-4" />
+        <p className="text-slate-600 font-medium text-lg">주문 정보를 불러오고 있습니다...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background relative selection:bg-purple-200">
@@ -154,7 +190,7 @@ export const PaymentClient = () => {
               <div className="space-y-4 text-sm">
                 <div className="flex justify-between items-center text-slate-600">
                   <span>주문 번호</span>
-                  <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs">{orderInfo.orderId}</span>
+                  <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs">{orderIdFromUrl}</span>
                 </div>
                 
                 <div className="border-t border-dashed border-slate-300 my-4" />
@@ -167,6 +203,7 @@ export const PaymentClient = () => {
                     </div>
                   ))}
                 </div>
+
 
                 <div className="border-t border-dashed border-slate-300 my-4" />
 

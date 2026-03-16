@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,12 +68,26 @@ export const DreamTellerClient = () => {
   const [includeImage, setIncludeImage] = useState(true); // AI 이미지 생성 옵션 기본 체크
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 비회원 정보 상태
+  // 실제 인증 상태 확인 및 동기화
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [phone, setPhone] = useState("");
   const [guestPassword, setGuestPassword] = useState("");
   
-  // TODO: 실제 인증 상태에 따라 초기값 설정 필요. 현재는 개발 모드 토글로 관리
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   
   // 아코디언 요소들을 위한 Ref
   const step1Ref = useRef<HTMLDivElement>(null);
@@ -153,12 +168,12 @@ export const DreamTellerClient = () => {
     }, 100);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // 1. 꿈 내용 체크
-    if (!dreamContent.trim()) {
-      alert("꿈 내용을 입력해주세요.");
+    if (!dreamContent.trim() || dreamContent.trim().length < 20) {
+      alert("꿈 내용을 최소 20자 이상 입력해주세요.");
       if (!openItems.includes('step-2')) handleNextStep('step-2');
       return;
     }
@@ -173,10 +188,42 @@ export const DreamTellerClient = () => {
     }
     
     setIsSubmitting(true);
-    setTimeout(() => {
-      router.push('/payments');
-    }, 600);
+    
+    try {
+      // 실제 백엔드에 주문 생성 요청 (Pending 상태)
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          dream_content: dreamContent,
+          expert_field: selectedField,
+          includes_image: includeImage,
+          total_amount: totalPrice,
+          // 비회원 정보 전달
+          phone_number: !isLoggedIn ? phone.replace(/-/g, "") : undefined,
+          guest_password: !isLoggedIn ? guestPassword : undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "주문 생성에 실패했습니다.");
+      }
+
+      // 3. 주문 생성 성공 시 결제 페이지로 이동 (order_number 전달)
+      const order = result.order;
+      router.push(`/payments?orderId=${order.order_number}`);
+
+    } catch (error: any) {
+      console.error("Order creation error:", error);
+      alert(error.message || "오류가 발생했습니다. 다시 시도해주세요.");
+      setIsSubmitting(false);
+    }
   };
+
 
   return (
     <main className="min-h-screen relative w-full overflow-hidden bg-background py-16 px-4">
@@ -184,20 +231,6 @@ export const DreamTellerClient = () => {
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-purple-200/40 rounded-full blur-[120px] pointer-events-none mix-blend-multiply opacity-50 animate-pulse" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-pink-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply opacity-50 animate-pulse [animation-delay:2s]" />
 
-      {/* Dev Tools - 회원/비회원 토글 */}
-      <div className="fixed top-[80px] right-4 z-40 bg-white/80 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 flex flex-col gap-2">
-        <span className="text-xs font-bold text-indigo-600 text-center uppercase tracking-wider">
-          Dev Tools
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsLoggedIn(!isLoggedIn)}
-          className="text-xs h-8 cursor-pointer border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 font-bold"
-        >
-          {isLoggedIn ? "회원 모드 (Step 4 숨김)" : "비회원 (Step 4 노출)"}
-        </Button>
-      </div>
 
       <div className="max-w-3xl mx-auto relative z-10">
         
