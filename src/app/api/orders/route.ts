@@ -144,11 +144,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 본인의 전체 주문 목록 조회, 최신순 정렬
+    // 본인의 전체 주문 목록 조회, 최신순 정렬 (해몽 결과 상태 포함)
     const { data: orders, error: fetchError } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, dream_results(analysis_status, id)")
       .eq("user_id", user.id)
+      .eq("payment_status", "paid") // 결제 완료된 것만 보여줌
       .order("created_at", { ascending: false });
 
     if (fetchError) {

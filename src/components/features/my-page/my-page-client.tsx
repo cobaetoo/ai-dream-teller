@@ -26,43 +26,18 @@ import { createClient } from "@/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
 
 // 더미 구매 내역 데이터 (실제 데이터 연동 전까지 유지)
-const MOCK_HISTORY = [
-  {
-    id: "ord_1",
-    date: new Date("2026-03-12"),
-    title: "빛의 미로가 된 거대한 도서관",
-    summary: "새로운 지식이나 경험에 대한 열망이 폭발적으로 분출되고 있음을 상징...",
-    thumbnail: "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: "ord_2",
-    date: new Date("2026-03-10"),
-    title: "끝없는 바다 위를 나는 고래",
-    summary: "억압된 감정의 해방과 자유로운 자아로의 회귀를 의미하는 매우 긍정적인 꿈...",
-    thumbnail: "https://images.unsplash.com/photo-1518173946687-a4c8a983378a?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: "ord_text_only",
-    date: new Date("2026-03-05"),
-    title: "아무런 소리도 들리지 않는 하얀 방",
-    summary: "외부의 자극으로부터 자신을 격리시키고 휴식을 취하고 싶은 심리적 상태를 반영하는 정적인 꿈입니다. 이미지 분석 없이 텍스트 심층 해몽만 진행된 케이스입니다.",
-    thumbnail: null, // 이미지 없음 예시
-  },
-  {
-    id: "ord_3",
-    date: new Date("2026-02-25"),
-    title: "구름 위로 솟은 번쩍이는 금색 성",
-    summary: "당신이 현재 추구하고 있는 목표가 비현실적일 수 있음을 경고함과 동시에...",
-    thumbnail: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: "ord_4",
-    date: new Date("2026-02-20"),
-    title: "끝을 알 수 없는 지하 계단",
-    summary: "자신의 무의식 깊은 곳을 탐구하고자 하는 욕구와 미지의 영역에 대한 두려움이 공존하는 상태입니다.",
-    thumbnail: "https://images.unsplash.com/photo-1505330622279-bf7d7fc918f4?q=80&w=200&auto=format&fit=crop",
-  },
-];
+// 인터페이스 정의
+interface OrderWithResult {
+  id: string;
+  order_number: string;
+  created_at: string;
+  dream_content: string;
+  total_amount: number;
+  dream_results: {
+    analysis_status: 'processing' | 'completed' | 'failed';
+    id: string;
+  }[];
+}
 
 const MyPageClient = () => {
   const router = useRouter();
@@ -71,27 +46,42 @@ const MyPageClient = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [nickname, setNickname] = useState("");
   const [tempNickname, setTempNickname] = useState("");
+  const [orders, setOrders] = useState<OrderWithResult[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(3);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 유저 정보 가져오기
+  // 유저 정보 및 주문 내역 가져오기
   useEffect(() => {
-    const getUser = async () => {
+    const initPage = async () => {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUser(user);
         const name = user.user_metadata?.full_name || user.user_metadata?.nickname || "사용자";
         setNickname(name);
         setTempNickname(name);
+        
+        // 주문 내역 API 호출
+        try {
+          const res = await fetch("/api/orders");
+          const data = await res.json();
+          if (data.orders) {
+            setOrders(data.orders);
+          }
+        } catch (err) {
+          console.error("Orders fetch failed:", err);
+        }
       } else {
         router.push("/auth");
       }
+      setIsLoading(false);
     };
-    getUser();
+    initPage();
   }, [supabase.auth, router]);
 
   // 해몽 기록이 있는 날짜들
-  const historyDates = MOCK_HISTORY.map((h) => h.date);
+  const historyDates = orders.map((o) => new Date(o.created_at));
 
   const handleUpdateNickname = async () => {
     if (!tempNickname.trim() || tempNickname === nickname) {
@@ -270,7 +260,7 @@ const MyPageClient = () => {
             {/* 해몽 캘린더 요약 미니 보드 */}
             <div className="bg-linear-to-br from-purple-600 to-pink-500 p-8 rounded-[2.5rem] shadow-xl shadow-purple-200/50 text-white space-y-2">
               <Brain className="w-8 h-8 mb-2 opacity-80" />
-              <p className="text-3xl font-black">{MOCK_HISTORY.length}</p>
+              <p className="text-3xl font-black">{orders.length}</p>
               <p className="text-sm font-medium opacity-80">지금까지 분석한 나의 꿈</p>
             </div>
           </div>
@@ -319,49 +309,63 @@ const MyPageClient = () => {
                 </h3>
               </div>
               <div className="space-y-4">
-                {MOCK_HISTORY.slice(0, visibleCount).map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/dream-result/${item.id}`}
-                    className="block group"
-                  >
-                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-purple-200 transition-all duration-300 flex items-center gap-6">
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md bg-linear-to-br from-indigo-50 to-fuchsia-50 flex items-center justify-center border border-purple-100/50">
-                        {item.thumbnail ? (
-                          <Image
-                            src={item.thumbnail}
-                            alt={item.title}
-                            fill
-                            className="object-cover group-hover:scale-110 transition-transform duration-500"
-                          />
-                        ) : (
-                          <div className="relative flex items-center justify-center w-full h-full">
-                            <div className="absolute inset-x-0 inset-y-0 bg-linear-to-br from-purple-500/5 to-pink-500/5 animate-pulse" />
-                            <Sparkles className="w-8 h-8 text-purple-300 relative z-10 group-hover:scale-110 group-hover:text-purple-400 transition-all duration-500" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-center gap-2 text-xs font-bold text-purple-600/70">
-                          <ShoppingBag className="w-3 h-3" />
-                          <span>{format(item.date, "yyyy. MM. dd", { locale: ko })}</span>
+                {orders.length === 0 && !isLoading && (
+                  <div className="bg-white p-12 rounded-[2rem] border border-slate-100 text-center space-y-4">
+                    <History className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-slate-400 font-bold">아직 해몽 분석 내역이 없습니다.</p>
+                    <Button onClick={() => router.push("/")} variant="outline" className="rounded-full">첫 해몽 시작하기</Button>
+                  </div>
+                )}
+                
+                {orders.slice(0, visibleCount).map((item) => {
+                  const result = item.dream_results?.[0];
+                  const isProcessing = result?.analysis_status === 'processing';
+                  
+                  return (
+                    <Link
+                      key={item.id}
+                      href={isProcessing ? "#" : `/dream-result/${item.id}`}
+                      className={`block group ${isProcessing ? "cursor-default" : ""}`}
+                      onClick={(e) => isProcessing && e.preventDefault()}
+                    >
+                      <div className={`bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all duration-300 flex items-center gap-6 ${isProcessing ? "opacity-90" : "hover:shadow-xl hover:shadow-slate-200/50 hover:border-purple-200"}`}>
+                        <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md bg-linear-to-br from-indigo-50 to-fuchsia-50 flex items-center justify-center border border-purple-100/50">
+                          {isProcessing ? (
+                            <div className="flex flex-col items-center justify-center w-full h-full bg-purple-50/50">
+                              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="relative flex items-center justify-center w-full h-full">
+                              <div className="absolute inset-x-0 inset-y-0 bg-linear-to-br from-purple-500/5 to-pink-500/5 animate-pulse" />
+                              <Sparkles className="w-8 h-8 text-purple-300 relative z-10 group-hover:scale-110 group-hover:text-purple-400 transition-all duration-500" />
+                            </div>
+                          )}
                         </div>
-                        <h4 className="text-lg font-bold text-slate-900 truncate">
-                          {item.title}
-                        </h4>
-                        <p className="text-slate-500 text-sm truncate">
-                          {item.summary}
-                        </p>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 text-xs font-bold text-purple-600/70">
+                            <ShoppingBag className="w-3 h-3" />
+                            <span>{format(new Date(item.created_at), "yyyy. MM. dd", { locale: ko })}</span>
+                            {isProcessing && (
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] animate-pulse">분석 중</span>
+                            )}
+                          </div>
+                          <h4 className="text-lg font-bold text-slate-900 truncate">
+                            {item.dream_content.slice(0, 20)}...
+                          </h4>
+                          <p className={`text-sm truncate font-medium ${isProcessing ? "text-amber-500" : "text-slate-500"}`}>
+                            {isProcessing ? "LLM이 심층 해몽 분석을 진행하고 있습니다. 잠시만 기다려 주세요." : item.dream_content}
+                          </p>
+                        </div>
+                        <div className={`shrink-0 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center transition-all ${isProcessing ? "" : "group-hover:bg-purple-600 group-hover:text-white"}`}>
+                          {isProcessing ? <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" /> : <ChevronRight className="w-5 h-5" />}
+                        </div>
                       </div>
-                      <div className="shrink-0 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-all">
-                        <ChevronRight className="w-5 h-5" />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
 
-              {visibleCount < MOCK_HISTORY.length && (
+               {visibleCount < orders.length && (
                 <div className="flex justify-center pt-4">
                   <Button
                     variant="outline"

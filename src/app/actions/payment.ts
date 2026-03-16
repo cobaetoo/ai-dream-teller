@@ -122,7 +122,15 @@ export async function confirmPaymentAction({
     }
 
     // 5. [비동기] AI 해몽 로직 호출 (생성 요청만 던짐)
-    // TODO: AI Worker 혹은 Vercel Function (Trigger) 연동
+    // 실제 운영 환경에서는 Vercel Function (Trigger) 혹은 외부 큐 연동 권장
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    
+    // 이 호출은 AI 분석을 시작하라는 신호만 보냅니다. (Fire & Forget 가능하도록)
+    fetch(`${baseUrl}/api/ai/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: order.id }),
+    }).catch(err => console.error("AI Generation trigger failed:", err));
 
     return { 
       success: true, 
