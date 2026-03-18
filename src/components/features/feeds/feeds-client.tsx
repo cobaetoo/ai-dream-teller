@@ -1,35 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   MoreHorizontal,
   Globe,
   Sparkles,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  type FeedItem,
-  generateDummyFeeds,
-  getExpertBadgeClass,
-  getRelativeTime,
-} from "@/lib/dummy-feeds";
+import { createClient } from "@/utils/supabase/client";
+import { formatDistanceToNow } from "date-fns";
+import { ko } from "date-fns/locale";
 
-// 초기 로드 수, 추가 로드 수
-const INITIAL_LOAD = 8;
-const LOAD_MORE = 4;
+const LOAD_MORE = 8;
 
-// 전체 더미 데이터 풀 (충분히 많이 생성)
-const ALL_FEEDS = generateDummyFeeds(40);
+const getExpertBadgeClass = (expertType: string) => {
+  switch (expertType) {
+    case '프로이트':
+      return 'bg-pink-100 text-pink-700';
+    case '칼 융':
+      return 'bg-purple-100 text-purple-700';
+    case '신경과학':
+      return 'bg-sky-100 text-sky-700';
+    case '게슈탈트':
+      return 'bg-emerald-100 text-emerald-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+};
 
 export const FeedsClient = () => {
-  const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD);
-  const visibleFeeds = ALL_FEEDS.slice(0, visibleCount);
-  const hasMore = visibleCount < ALL_FEEDS.length;
+  const [feeds, setFeeds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const supabase = createClient();
 
-  const handleLoadMore = () => {
-    setVisibleCount((prev) => Math.min(prev + LOAD_MORE, ALL_FEEDS.length));
+  const fetchFeeds = async (pageIndex: number, currentFeeds: any[]) => {
+    try {
+      const res = await fetch(`/api/feeds?limit=${LOAD_MORE}&page=${pageIndex}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "피드를 불러오는데 실패했습니다.");
+
+      if (data.success && data.data) {
+        if (pageIndex === 0) {
+          setFeeds(data.data);
+        } else {
+          setFeeds([...currentFeeds, ...data.data]);
+        }
+        
+        setHasMore(data.pagination.hasMore);
+      }
+    } catch (e) {
+      console.error("Feeds fetch failed:", e);
+    }
+  };
+
+  useEffect(() => {
+    const initFetch = async () => {
+      setLoading(true);
+      await fetchFeeds(0, []);
+      setLoading(false);
+    };
+    initFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLoadMore = async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    await fetchFeeds(nextPage, feeds);
+    setPage(nextPage);
+    setLoadingMore(false);
   };
 
   return (
@@ -48,26 +95,40 @@ export const FeedsClient = () => {
       </div>
 
       {/* 피드 리스트 */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {visibleFeeds.map((feed) => (
-          <FeedCard key={feed.id} feed={feed} />
-        ))}
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+          </div>
+        ) : feeds.length > 0 ? (
+          feeds.map((feed) => (
+            <FeedCard key={feed.id} feed={feed} />
+          ))
+        ) : (
+          <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-lg">아직 공개된 꿈 해몽 결과가 없습니다.</p>
+          </div>
+        )}
 
         {/* 더보기 버튼 */}
-        {hasMore && (
+        {hasMore && feeds.length > 0 && !loading && (
           <div className="flex justify-center pt-4 pb-8">
             <Button
               variant="outline"
               onClick={handleLoadMore}
+              disabled={loadingMore}
               className="rounded-full bg-white hover:bg-slate-50 text-slate-700 border-slate-300 px-8 cursor-pointer"
             >
+              {loadingMore ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               더 많은 꿈 이야기 보기
-              <ChevronDown className="ml-2 w-4 h-4" />
+              {!loadingMore && <ChevronDown className="ml-2 w-4 h-4" />}
             </Button>
           </div>
         )}
 
-        {!hasMore && (
+        {!hasMore && feeds.length > 0 && (
           <div className="text-center py-12 text-slate-400 text-sm">
             모든 꿈 이야기를 확인했습니다 ✨
           </div>
@@ -80,28 +141,33 @@ export const FeedsClient = () => {
 // ─── 개별 피드 카드 컴포넌트 ────────────────────────────────
 
 interface FeedCardProps {
-  feed: FeedItem;
+  feed: any;
 }
 
 const FeedCard = ({ feed }: FeedCardProps) => {
+  const expertField = feed.orders?.expert_field || "해몽";
+  const dreamContent = feed.orders?.dream_content || "";
+  const avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${feed.orders?.user_id || feed.id}`;
+  const timeText = formatDistanceToNow(new Date(feed.created_at), { addSuffix: true, locale: ko });
+
   return (
     <article className="bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
-      {/* 카드 헤더 - 사용자 정보 (페이스북 스타일) */}
+      {/* 카드 헤더 - 사용자 정보 */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-3">
           {/* 아바타 */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={feed.userAvatar}
-            alt={`${feed.userName} 프로필`}
-            className="w-10 h-10 rounded-full object-cover border border-slate-200"
+            src={avatarUrl}
+            alt="프로필"
+            className="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-50"
           />
           <div>
             <p className="text-sm font-semibold text-slate-900 leading-tight">
-              {feed.userName}
+              익명 사용자
             </p>
             <div className="flex items-center gap-1 text-xs text-slate-500">
-              <span>{getRelativeTime(feed.createdAt)}</span>
+              <span>{timeText}</span>
               <span>·</span>
               <Globe className="w-3 h-3" />
             </div>
@@ -115,27 +181,27 @@ const FeedCard = ({ feed }: FeedCardProps) => {
       {/* 분석 뱃지 + 꿈 제목 + 내용 */}
       <div className="px-4 pb-3">
         <span
-          className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full mb-2 ${getExpertBadgeClass(feed.expertType)}`}
+          className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full mb-2 ${getExpertBadgeClass(expertField)}`}
         >
-          {feed.expertLabel}
+          {expertField}
         </span>
         <h3 className="text-base font-bold text-slate-900 mb-1">
-          🌙 {feed.dreamTitle}
+          🌙 {dreamContent}
         </h3>
         <p className="text-sm text-slate-600 leading-relaxed line-clamp-3">
-          {feed.dreamSummary}
+           {dreamContent}
         </p>
       </div>
 
       {/* 해몽 결과 미리보기 카드 */}
-      <Link href={`/dream-result/${feed.id}`} className="block cursor-pointer">
-        <div className="mx-4 mb-4 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden hover:bg-slate-100 transition-colors">
+      <Link href={`/dream-result/${feed.order_id}`} className="block cursor-pointer group">
+        <div className="mx-4 mb-4 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden group-hover:bg-slate-100 transition-colors">
           {/* 이미지 영역 (있는 경우) */}
-          {feed.imageUrl && (
+          {feed.image_url && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={feed.imageUrl}
-              alt={`${feed.dreamTitle} 시각화 이미지`}
+              src={feed.image_url}
+              alt="AI 시각화 이미지"
               className="w-full aspect-video object-cover"
             />
           )}
@@ -144,7 +210,7 @@ const FeedCard = ({ feed }: FeedCardProps) => {
               AI 심층 해몽 결과
             </p>
             <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed">
-              {feed.analysisExcerpt}
+              {feed.analysis_text.replace(/[#*]/g, '')}
             </p>
           </div>
         </div>

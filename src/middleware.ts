@@ -50,7 +50,27 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // 보호된 라우트 접근 제어 (PRD: /my-page)
+  // 1. 관리자 전용 API 보호 (PRD 8.2 No 12)
+  if (pathname.startsWith("/api/admin/")) {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized: Login required" }, { status: 401 });
+    }
+
+    // Role 확인 (public.users 테이블 쿼리)
+    // 미들웨어 전용이므로 가급적 빠른 조회가 필요하지만, 보안상 DB 실제 컬럼 체크를 수행
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (userError || !userData || userData.role !== "admin") {
+      console.warn(`Unauthorized Admin access attempt by ${user.email} (UID: ${user.id}, Role: ${userData?.role || 'none'})`);
+      return NextResponse.json({ error: "Forbidden: Admin access only" }, { status: 403 });
+    }
+  }
+
+  // 2. 일반 보호된 라우트 접근 제어 (PRD: /my-page)
   if (pathname.startsWith("/my-page") && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";

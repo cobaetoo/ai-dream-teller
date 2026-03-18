@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { sendTelegramMessage } from "@/utils/telegram";
 
 export async function confirmPaymentAction({
   paymentKey,
@@ -20,8 +21,7 @@ export async function confirmPaymentAction({
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 1. Supabase에서 주문서 조회 (RLS 우회를 위해 serviceSupabase 사용 가능 혹은 session 사용)
-    // 비회원 주문도 조회해야 하므로 serviceSupabase 사용 권장
+    // 1. Supabase에서 주문서 조회 (RLS 우회를 위해 serviceSupabase 사용)
     const { data: order, error: orderError } = await serviceSupabase
       .from("orders")
       .select("*")
@@ -33,6 +33,7 @@ export async function confirmPaymentAction({
     }
 
     let isGuestOrder = false;
+    let userIdForNotice = order.user_id || "비회원";
     
     // 권한 확인: 
     // - 회원 주문인 경우: 로그인한 유저와 주문의 user_id가 일치해야 함
@@ -41,12 +42,13 @@ export async function confirmPaymentAction({
        // 주문 소유자의 role 확인
        const { data: orderOwner } = await serviceSupabase
          .from("users")
-         .select("role")
+         .select("id, role")
          .eq("id", order.user_id)
          .single();
        
        if (orderOwner?.role === 'guest') {
          isGuestOrder = true;
+         userIdForNotice = `비회원(${orderOwner.id.substring(0, 8)}...)`;
        }
 
        if (orderOwner?.role === 'member' && (!user || user.id !== order.user_id)) {
@@ -98,6 +100,10 @@ export async function confirmPaymentAction({
         .update({ payment_status: "failed", error_message: tossData.message })
         .eq("id", order.id);
 
+      // 텔레그램 결제 승인 실패 알림
+      const failMsg = `🚨 <b>결제 승인 실패</b>\n\n- 주문번호: ${orderId}\n- 유저아이디: ${userIdForNotice}\n- 시도금액: ${amount.toLocaleString()}원\n- 실패 사유: ${tossData.message || "알 수 없음"}`;
+      await sendTelegramMessage(failMsg);
+
       return { 
         success: false, 
         error: tossData.message || "Payment approval failed", 
@@ -120,6 +126,12 @@ export async function confirmPaymentAction({
       console.error("Failed to update order status post-payment:", updateError);
       return { success: false, error: "Database sync failed after successful payment", status: 500 };
     }
+
+    // 결제 성공 텔레그램 알림 발송
+    const optionName = order.includes_image ? "텍스트 + AI 이미지" : "텍스트 전용";
+    const shortDreamContent = order.dream_content.length > 20 ? order.dream_content.substring(0, 20) + "..." : order.dream_content;
+    const successMsg = `🎉 <b>결제 성공 알림</b>\n\n- 상품옵션: ${optionName}\n- 유저아이디: ${userIdForNotice}\n- 결제금액: ${amount.toLocaleString()}원\n- 해몽 전문: ${order.expert_field}\n- 꿈내용 일부: <i>"${shortDreamContent}"</i>`;
+    await sendTelegramMessage(successMsg);
 
     // 5. [비동기] AI 해몽 로직 호출 (생성 요청만 던짐)
     // 실제 운영 환경에서는 Vercel Function (Trigger) 혹은 외부 큐 연동 권장

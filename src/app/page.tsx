@@ -9,6 +9,9 @@ import {
   Search,
   CalendarDays,
 } from 'lucide-react';
+import { createClient } from '@/utils/supabase/server';
+import { formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 export const metadata: Metadata = {
   title: 'AI Dream Teller - 어젯밤 꿈, 아직 기억나시나요?',
@@ -16,18 +19,27 @@ export const metadata: Metadata = {
     '프로이트부터 신경과학까지 4가지 전문 관점으로 AI가 당신의 꿈을 분석합니다. 3분 안에 당신만의 꿈 해석 리포트를 받아보세요.',
 };
 
-const HomePage = () => {
+const HomePage = async () => {
+  const supabase = await createClient();
+
+  // 공개 허용된 최신 해몽 결과 3개 가져오기
+  const { data: publicDreams } = await supabase
+    .from('dream_results')
+    .select('id, order_id, analysis_text, image_url, created_at, orders!inner(expert_field, dream_content)')
+    .eq('is_public', true)
+    .eq('analysis_status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(3);
+
   return (
     <div className="flex flex-col w-full min-h-screen">
       {/* 1. Hero Section */}
       <section className="relative w-full min-h-[90vh] flex flex-col items-center justify-center overflow-hidden px-4 py-20">
-        {/* 배경 오로라 효과 - 몽환적이고 은은한 분위기 연출 */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-400/20 rounded-full blur-[120px] pointer-events-none opacity-50 animate-pulse" />
         <div className="absolute top-1/3 left-1/3 w-[500px] h-[500px] bg-pink-400/30 rounded-full blur-[100px] pointer-events-none opacity-40 mix-blend-multiply animate-pulse [animation-delay:1s]" />
         <div className="absolute top-2/3 right-1/3 w-[600px] h-[600px] bg-sky-300/30 rounded-full blur-[120px] pointer-events-none opacity-40 mix-blend-multiply animate-pulse [animation-delay:2s]" />
 
         <div className="relative z-10 flex flex-col items-center text-center max-w-4xl mx-auto space-y-8">
-          {/* 뱃지 - 서비스 핵심 키워드 한눈에 전달 */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/50 border border-black/5 backdrop-blur-md shadow-sm">
             <Sparkles className="w-4 h-4 text-purple-600" />
             <span className="text-sm font-medium text-slate-800">
@@ -35,7 +47,6 @@ const HomePage = () => {
             </span>
           </div>
 
-          {/* H1 - PRD 기획: "어젯밤 꿈, 아직 기억나시나요?" */}
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight text-slate-900">
             어젯밤{' '}
             <span className="text-transparent bg-clip-text bg-linear-to-r from-purple-600 via-pink-500 to-sky-500">
@@ -46,7 +57,6 @@ const HomePage = () => {
             아직 기억나시나요?
           </h1>
 
-          {/* Sub-text - PRD 기획: 전문성 + AI + 편리함 + 결과물 전달 */}
           <p className="text-lg md:text-xl text-slate-600 max-w-2xl leading-relaxed">
             프로이트부터 신경과학까지, 4가지 전문 관점으로 AI가 당신의 꿈을
             분석합니다.
@@ -54,7 +64,6 @@ const HomePage = () => {
             어젯밤 꿈을 적으면, 3분 안에 당신만의 꿈 해석 리포트가 완성됩니다.
           </p>
 
-          {/* CTA - PRD 기획: "내 꿈 해석 시작하기" */}
           <div className="pt-4">
             <Link href="/dream-teller">
               <Button
@@ -82,7 +91,6 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full auto-rows-[250px]">
-            {/* Card 1 (Main/Large) - 전문 관점 선택 */}
             <div className="md:col-span-2 relative group overflow-hidden rounded-3xl bg-white border border-black/5 shadow-xs p-8 flex flex-col justify-end hover:shadow-md hover:border-purple-500/30 transition-all duration-300">
               <div className="absolute inset-0 bg-linear-to-br from-purple-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <Brain className="absolute top-8 right-8 w-12 h-12 text-purple-400 group-hover:text-purple-500 group-hover:scale-110 transition-all duration-300" />
@@ -97,7 +105,6 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Card 2 - AI 심층 분석 */}
             <div className="relative group overflow-hidden rounded-3xl bg-white border border-black/5 shadow-xs p-8 flex flex-col justify-end hover:shadow-md hover:border-pink-500/30 transition-all duration-300">
               <div className="absolute inset-0 bg-linear-to-br from-pink-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <Search className="absolute top-8 right-8 w-10 h-10 text-pink-400 group-hover:text-pink-500 group-hover:scale-110 transition-all duration-300" />
@@ -112,7 +119,6 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Card 3 - AI 꿈 시각화 */}
             <div className="relative group overflow-hidden rounded-3xl bg-white border border-black/5 shadow-xs p-8 flex flex-col justify-end hover:shadow-md hover:border-blue-500/30 transition-all duration-300">
               <div className="absolute inset-0 bg-linear-to-br from-sky-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <ImageIcon className="absolute top-8 right-8 w-10 h-10 text-sky-400 group-hover:text-sky-500 group-hover:scale-110 transition-all duration-300" />
@@ -127,7 +133,6 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Card 4 (Wide) - 기록 & 공유 */}
             <div className="md:col-span-2 relative group overflow-hidden rounded-3xl bg-white border border-black/5 shadow-xs p-8 flex flex-col justify-end hover:shadow-md hover:border-fuchsia-500/30 transition-all duration-300">
               <div className="absolute inset-0 bg-linear-to-r from-fuchsia-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <CalendarDays className="absolute top-8 right-8 w-12 h-12 text-fuchsia-400 group-hover:text-fuchsia-500 group-hover:scale-110 transition-all duration-300" />
@@ -171,88 +176,58 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* 더미 카드 1 - 이미지 포함 */}
-            <Link
-              href="/dream-result/dummy-1"
-              className="block group cursor-pointer"
-            >
-              <div className="rounded-2xl bg-white border border-black/5 shadow-xs overflow-hidden h-full hover:shadow-lg transition-all duration-300">
-                <div className="aspect-video w-full bg-linear-to-br from-indigo-200 to-purple-200 relative">
-                  <div className="absolute inset-0 mix-blend-multiply bg-[url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center" />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
-                      칼 융 기반
-                    </span>
-                    <span className="text-xs text-slate-500">2시간 전</span>
-                  </div>
-                  <h4 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-2">
-                    하늘을 나는 고래를 본 꿈
-                  </h4>
-                  <p className="text-sm text-slate-600 line-clamp-2">
-                    당신이 마주한 고래는 거대한 무의식의 흐름을 상징합니다.
-                    현재 겪고 있는 감정적 변화에 순응하라는 무의식의
-                    메시지로 해석될 수 있습니다...
-                  </p>
-                </div>
-              </div>
-            </Link>
-
-            {/* 더미 카드 2 - 텍스트 전용 */}
-            <Link
-              href="/dream-result/dummy-2"
-              className="block group cursor-pointer"
-            >
-              <div className="rounded-2xl bg-white border border-black/5 shadow-xs overflow-hidden h-full hover:shadow-lg transition-all duration-300">
-                <div className="p-6 h-full flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-pink-100 text-pink-700">
-                        프로이트 기반
-                      </span>
-                      <span className="text-xs text-slate-500">5시간 전</span>
+            {publicDreams && publicDreams.length > 0 ? (
+              publicDreams.map((dream: any) => {
+                const expertField = dream.orders?.expert_field || "해몽";
+                const content = dream.orders?.dream_content || "";
+                
+                return (
+                  <Link
+                    key={dream.id}
+                    href={`/dream-result/${dream.order_id}`}
+                    className="block group cursor-pointer"
+                  >
+                    <div className="rounded-2xl bg-white border border-black/5 shadow-xs overflow-hidden h-full hover:shadow-lg transition-all duration-300 flex flex-col">
+                      {dream.image_url ? (
+                        <div className="aspect-video w-full bg-slate-100 relative">
+                          <div 
+                            className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                            style={{ backgroundImage: `url('${dream.image_url}')` }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-6 pb-0 flex-1">
+                          {/* 이미지가 없을 때 남는 공간 확보용 (최소 높이 유지 등) */}
+                        </div>
+                      )}
+                      
+                      <div className="p-6 flex flex-col justify-between flex-1">
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                              {expertField}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {formatDistanceToNow(new Date(dream.created_at), { addSuffix: true, locale: ko })}
+                            </span>
+                          </div>
+                          <h4 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-2">
+                            {content}
+                          </h4>
+                          <p className="text-sm text-slate-600 line-clamp-2">
+                            {dream.analysis_text.replace(/[#*]/g, '')}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <h4 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-2">
-                      끝없이 이어지는 계단
-                    </h4>
-                    <p className="text-sm text-slate-600 line-clamp-4">
-                      계단을 끊임없이 내려가는 꿈은 내면 깊은 곳으로
-                      침잠하려는 욕구를 나타냅니다. 억압된 감정이나 피하고
-                      싶었던 과거의 기억이 표면으로 드러나기 위한 준비
-                      과정입니다.
-                    </p>
-                  </div>
-                </div>
+                  </Link>
+                );
+              })
+            ) : (
+              <div className="col-span-full py-12 text-center text-slate-400">
+                아직 공개된 꿈 해몽 결과가 없습니다.
               </div>
-            </Link>
-
-            {/* 더미 카드 3 - 이미지 포함 */}
-            <Link
-              href="/dream-result/dummy-3"
-              className="block group cursor-pointer"
-            >
-              <div className="rounded-2xl bg-white border border-black/5 shadow-xs overflow-hidden h-full hover:shadow-lg transition-all duration-300">
-                <div className="aspect-video w-full bg-linear-to-br from-sky-200 to-blue-200 relative">
-                  <div className="absolute inset-0 mix-blend-multiply bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center" />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-sky-100 text-sky-700">
-                      신경과학 기반
-                    </span>
-                    <span className="text-xs text-slate-500">1일 전</span>
-                  </div>
-                  <h4 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-2">
-                    거울 속에 비친 낯선 나
-                  </h4>
-                  <p className="text-sm text-slate-600 line-clamp-2">
-                    최근 극심한 스트레스로 인해 뇌의 특정 부분에서 기억
-                    체계가 강하게 활성화되며 발현된 이미지입니다...
-                  </p>
-                </div>
-              </div>
-            </Link>
+            )}
           </div>
         </div>
       </section>

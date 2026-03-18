@@ -44,12 +44,26 @@ export const GuestLoginClient = () => {
 
     setIsLoading(true);
     
-    // TODO: 실제 비회원 로그인 API 연동
-    // 현재는 더미 처리로 1초 후 '/guest-check'로 이동
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch("/api/auth/guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_number: phone, guest_password: password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || "조회에 실패했습니다.");
+      }
+
+      // 성공 시 서버에서 쿠키를 설정함
       router.push("/guest-check");
-    }, 1000);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

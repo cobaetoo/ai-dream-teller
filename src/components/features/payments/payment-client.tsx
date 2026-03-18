@@ -88,39 +88,76 @@ export const PaymentClient = () => {
     if (!orderInfo || !widgetContainerRef.current) return;
 
     let active = true;
+    let paymentMethodWidgetInstance: any = null;
+    let agreementWidgetInstance: any = null;
 
     async function initializeWidget() {
+      // 1. React 18 Strict Mode 대응: 첫 번째 마운트가 곧바로 파괴되는 주기를 기다려줍니다.
+      // JS Event Loop의 Macrotask Queue 단계를 활용해 1틱(Tick)을 양보하면, 
+      // 즉시 파괴되는 Strict Mode의 컴포넌트는 다음 코드를 실행하기 전에 active = false가 됩니다.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      if (!orderInfo || !active) return;
+      
       try {
         setIsInitializing(true);
         const tossPayments = await loadTossPayments(CLIENT_KEY);
         
-        // customerKey는 유니크해야 함 (간편결제를 위한 식별자이기도 함)
-        const customerKey = `user_${Math.random().toString(36).slice(2, 11)}`;
-        const widgets = tossPayments.widgets({ customerKey });
+        if (!active) return;
         
-        if (!active || !orderInfo) return;
+        const customerKey = orderInfo.orderId.split('_')[0] || "guest_user";
+        const widgets = tossPayments.widgets({ customerKey });
         
         await widgets.setAmount({
           currency: 'KRW',
           value: orderInfo.totalPrice,
         });
 
-        await Promise.all([
-          widgets.renderPaymentMethods({
+        // 결제수단 위젯 렌더링 (await 도중에 컴포넌트가 파괴될 수 있음)
+        let tempPaymentMethodWidget: any = null;
+        try {
+          tempPaymentMethodWidget = await widgets.renderPaymentMethods({
             selector: "#payment-method",
             variantKey: "DEFAULT",
-          }),
-          widgets.renderAgreement({ 
+          });
+        } catch (e: any) {
+          if (!e.message?.includes('ALREADY_RENDERED')) {
+            console.error("결제수단 렌더링 오류:", e);
+          }
+        }
+
+        // 반환 기다리는 도중 언마운트 발생 시, 즉각 파기하여 Toss SDK 내부 전역상태 릴리즈
+        if (!active) {
+          if (tempPaymentMethodWidget) tempPaymentMethodWidget.destroy().catch(console.error);
+          return;
+        }
+        paymentMethodWidgetInstance = tempPaymentMethodWidget;
+
+        // 약관 위젯 렌더링
+        let tempAgreementWidget: any = null;
+        try {
+          tempAgreementWidget = await widgets.renderAgreement({ 
             selector: "#agreement", 
             variantKey: "AGREEMENT" 
-          }),
-        ]);
-
-        if (active) {
-          setPaymentWidget(widgets);
-          setIsInitializing(false);
+          });
+        } catch (e: any) {
+          if (!e.message?.includes('ALREADY_RENDERED')) {
+            console.error("약관 렌더링 오류:", e);
+          }
         }
+
+        if (!active) {
+          // Promise 반환 도중 파기된 경우 약관/결제수단 둘다 릴리즈
+          if (tempAgreementWidget) tempAgreementWidget.destroy().catch(console.error);
+          if (paymentMethodWidgetInstance) paymentMethodWidgetInstance.destroy().catch(console.error);
+          return;
+        }
+        agreementWidgetInstance = tempAgreementWidget;
+
+        setPaymentWidget(widgets);
+        setIsInitializing(false);
       } catch (error) {
+        if (!active) return; // 언마운트된 컴포넌트의 에러는 무시
         console.error("위젯 초기화 중 오류 발생:", error);
         setIsInitializing(false);
       }
@@ -130,8 +167,18 @@ export const PaymentClient = () => {
 
     return () => {
       active = false;
+      
+      // 언마운트(컴포넌트 소멸 또는 Strict Mode 재실행) 시 메모리와 DOM에서 위젯 파기 수행
+      if (paymentMethodWidgetInstance) {
+        paymentMethodWidgetInstance.destroy().catch(console.error);
+        paymentMethodWidgetInstance = null;
+      }
+      if (agreementWidgetInstance) {
+        agreementWidgetInstance.destroy().catch(console.error);
+        agreementWidgetInstance = null;
+      }
     };
-  }, [orderInfo]);
+  }, [orderInfo?.orderId, orderInfo?.totalPrice]); // 객체 참조 대신 원시 값인 id와 금액을 의존성으로 지정
 
   const handlePayment = async () => {
     if (!paymentWidget || !orderInfo) return;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { sendTelegramMessage } from "@/utils/telegram";
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,6 +69,10 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // 텔레그램 결제창 이탈/실패 알림
+    const failMsg = `🚨 <b>결제창 진행 실패</b>\n\n- 주문번호: ${orderId}\n- 유저아이디: ${order.user_id || '비회원'}\n- 에러 코드: ${code || "UNKNOWN"}\n- 실패 사유: ${message || "User aborted or payment failed"}`;
+    await sendTelegramMessage(failMsg);
 
     return NextResponse.json(
       { success: true, message: "Order marked as failed successfully" },

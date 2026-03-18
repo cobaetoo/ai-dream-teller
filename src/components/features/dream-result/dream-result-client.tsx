@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -14,10 +16,14 @@ import {
   CheckCircle2,
   Brain,
   MessageCircleQuestion,
+  Loader2,
 } from "lucide-react";
-import Image from "next/image";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import { Switch } from "@/components/ui/switch";
+import { toggleDreamPublicAction } from "@/app/actions/dream-result";
+import { useTransition } from "react";
 
 // 카카오 SDK 타입 정의
 declare global {
@@ -26,32 +32,29 @@ declare global {
   }
 }
 
-// 더미 데이터 객체
-const MOCK_RESULT = {
-  inputDream:
-    "제가 어젯밤 거대한 도서관에서 책을 읽고 있었어요. 그런데 갑자기 모든 책에서 빛이 나더니 책장들이 스스로 움직이면서 미로처럼 변했어요. 무섭진 않았고 오히려 흥미진진한 탐험을 하는 느낌이었습니다.",
-  title: "빛의 미로가 된 거대한 도서관",
-  analysis: `이 꿈은 당신의 무의식 속에서 **새로운 지식이나 경험에 대한 열망이 폭발적으로 분출**되고 있음을 보여줍니다. \n\n도서관이라는 공간은 칼 융(Carl Jung)의 분석심리학적 관점에서 인류의 집단 무의식 또는 당신이 쌓아온 개인의 지적 자산을 상징합니다. 책에서 빛이 나고 미로처럼 변하는 것은 너무 많은 기회나 선택지가 주어졌을 때 발생하는 혼란을 의미하지만, 두려움보다는 흥미를 느꼈다는 점에서 \n당신은 현재의 혼란스러운 상황을 '도전적이고 긍정적인 성장의 기회'로 받아들이고 있습니다.\n\n즉, 현재 직면한 복잡한 문제들을 두려워하지 말고 호기심을 갖고 탐색해 나가라는 내면의 강력한 지지 메시지로 해몽할 수 있습니다.`,
-  expertLabel: "칼 융 분석",
-  date: new Date("2026-03-12"),
-  imageUrl:
-    "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=800&auto=format&fit=crop",
-};
-export const DreamResultClient = ({ orderId }: { orderId: string }) => {
+export const DreamResultClient = ({ 
+  orderId,
+  initialData,
+  isOwner: initialIsOwner,
+  pastDates: initialPastDates,
+  isMember: initialIsMember
+}: { 
+  orderId: string;
+  initialData: any;
+  isOwner: boolean;
+  pastDates: Date[];
+  isMember: boolean;
+}) => {
   const router = useRouter();
-  // 실제 서비스라면 세션에서 확인하겠지만, 기획 확인을 위해 토글 버튼으로 제공
-  const [isMember, setIsMember] = useState(true);
   const [copied, setCopied] = useState(false);
-
-  // 시뮬레이션: orderId가 'invalid'로 시작하면 결과 없음 처리
-  const isNotFound = orderId.startsWith("invalid");
-
-  // 회원이 기록한 해몽 내역 날짜 (더미)
-  const pastDates = [
-    new Date("2026-03-12"),
-    new Date("2026-03-10"),
-    new Date("2026-02-25"),
-  ];
+  
+  const [resultData, setResultData] = useState<any>(initialData);
+  const isMember = initialIsMember;
+  const isOwner = initialIsOwner;
+  const pastDates = initialPastDates;
+  
+  // 공개/비공개 토글 관련 상태
+  const [isPending, startTransition] = useTransition();
 
   const handleCopyLink = async () => {
     try {
@@ -66,8 +69,6 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
   const handleKakaoShare = () => {
     if (window.Kakao) {
       const { Kakao } = window;
-      
-      // 이미 초기화되어 있는지 확인 후 초기화
       if (!Kakao.isInitialized()) {
         const apiKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "YOUR_KAKAO_JS_KEY";
         Kakao.init(apiKey);
@@ -76,9 +77,9 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
       Kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
-          title: `[AI Dream Teller] ${MOCK_RESULT.title}`,
-          description: MOCK_RESULT.inputDream.slice(0, 100) + "...",
-          imageUrl: MOCK_RESULT.imageUrl,
+          title: `[AI Dream Teller] ${resultData?.title || '나의 꿈 해몽'}`,
+          description: (resultData?.inputDream || "").slice(0, 100) + "...",
+          imageUrl: resultData?.imageUrl || "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=800",
           link: {
             mobileWebUrl: window.location.href,
             webUrl: window.location.href,
@@ -99,7 +100,20 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
     }
   };
 
-  if (isNotFound) {
+  const handleTogglePublic = () => {
+    if (!resultData?.id || isPending) return;
+
+    startTransition(async () => {
+      const response = await toggleDreamPublicAction(resultData.id, !resultData.isPublic);
+      if (response.success) {
+        setResultData((prev: any) => ({ ...prev, isPublic: response.isPublic }));
+      } else {
+        alert(response.error || "상태 변경에 실패했습니다.");
+      }
+    });
+  };
+
+  if (!resultData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-[#faf9f6]">
         <div className="max-w-md w-full text-center space-y-6 bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
@@ -109,7 +123,7 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-slate-900">해몽 결과를 찾을 수 없습니다</h1>
             <p className="text-slate-500 leading-relaxed">
-              요청하신 주문 번호({orderId})와 일치하는 <br/> 데이터가 없거나 접근 권한이 없습니다.
+              요청하신 주문 번호와 일치하는 <br/> 데이터가 없거나 접근 권한이 없습니다.
             </p>
           </div>
           <Button 
@@ -125,7 +139,6 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
 
   return (
     <div className="min-h-screen bg-[#faf9f6] selection:bg-purple-200 w-full relative">
-      {/* 카카오 SDK 스크립트 - lazyOnload 제거 (버튼 클릭 전 안정적 로딩 보장) */}
       <Script
         id="kakao-sdk"
         src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js"
@@ -139,38 +152,43 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           }
         }}
       />
-      {/* 테스트용 토글 버튼 */}
-      <div className="fixed top-[80px] right-4 z-40 bg-white/80 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 flex flex-col gap-2">
-        <span className="text-xs font-bold text-purple-600 text-center uppercase tracking-wider">
-          Dev Tools
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsMember(!isMember)}
-          className="text-xs h-8 cursor-pointer border-purple-200 hover:bg-purple-50 hover:text-purple-700"
-        >
-          {isMember ? "회원 모드 (캘린더 노출)" : "비회원 (캘린더 숨김)"}
-        </Button>
-      </div>
 
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-12">
-        {/* 상단 타이틀 */}
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-100 text-purple-700 text-sm font-semibold mb-2 shadow-sm border border-purple-200/50">
             <Brain className="w-4 h-4" />
-            <span>{MOCK_RESULT.expertLabel}</span>
+            <span>{resultData.expertLabel}</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
             어젯밤의 무의식이 <br className="hidden md:block" />
             당신에게 보내는 메시지
           </h1>
           <p className="text-slate-500 font-medium tracking-wide">
-            {format(MOCK_RESULT.date, "yyyy년 MM월 dd일", { locale: ko })} 분석 완료
+            {format(resultData.date, "yyyy년 MM월 dd일", { locale: ko })} 분석 완료
           </p>
         </div>
 
-        {/* 유저가 입력한 꿈 내용 섹션 */}
+        {isOwner && (
+          <div className="flex items-center justify-between p-6 bg-white rounded-3xl border border-purple-100 shadow-sm mt-6">
+            <div className="space-y-1">
+              <h3 className="font-bold text-slate-800">대중에게 공개하기</h3>
+              <p className="text-sm text-slate-500">
+                내 꿈을 메인 페이지 피드에 공유하여 다른 사람들과 나눕니다.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm font-semibold transition-colors ${resultData.isPublic ? "text-slate-400" : "text-slate-700"}`}>비공개</span>
+              <Switch 
+                checked={resultData.isPublic} 
+                onCheckedChange={handleTogglePublic}
+                disabled={isPending}
+                className="data-[state=checked]:bg-purple-600"
+              />
+              <span className={`text-sm font-semibold transition-colors ${resultData.isPublic ? "text-purple-600" : "text-slate-400"}`}>공개</span>
+            </div>
+          </div>
+        )}
+
         <div className="relative p-8 rounded-3xl bg-white shadow-xl shadow-slate-200/50 border border-slate-100 mt-8 group">
           <div className="absolute top-0 left-8 -translate-y-1/2 w-12 h-12 bg-linear-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
             <MessageCircleQuestion className="w-6 h-6 text-white" />
@@ -181,19 +199,18 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           <div className="relative">
             <Quote className="absolute -top-2 -left-3 w-10 h-10 text-slate-100 rotate-180" />
             <p className="relative z-10 text-slate-700 text-lg leading-relaxed whitespace-pre-wrap pl-6 italic">
-              "{MOCK_RESULT.inputDream}"
+              "{resultData.inputDream}"
             </p>
             <Quote className="absolute -bottom-4 right-0 w-10 h-10 text-slate-100" />
           </div>
         </div>
 
-        {/* AI 생성 이미지 섹션 */}
-        {MOCK_RESULT.imageUrl && (
-          <div className="relative w-full aspect-[21/9] rounded-3xl overflow-hidden shadow-2xl shadow-purple-900/10 group">
+        {resultData.imageUrl && (
+          <div className="relative w-full aspect-21/9 rounded-3xl overflow-hidden shadow-2xl shadow-purple-900/10 group">
             <div className="absolute inset-0 bg-linear-to-r from-purple-500/20 to-pink-500/20 mix-blend-overlay z-10" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={MOCK_RESULT.imageUrl}
+              src={resultData.imageUrl}
               alt="AI가 그려낸 꿈의 한 장면"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
@@ -206,7 +223,6 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           </div>
         )}
 
-        {/* 심층 해석 결과 섹션 */}
         <div className="relative p-8 md:p-10 rounded-3xl bg-linear-to-b from-purple-50/50 to-white shadow-xl shadow-slate-200/50 border border-purple-100">
           <h2 className="text-2xl font-bold text-purple-900 mb-6 flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-purple-500" />
@@ -214,15 +230,31 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           </h2>
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-slate-800 border-l-4 border-pink-400 pl-4 py-1.5">
-              {MOCK_RESULT.title}
+              {resultData.title}
             </h3>
-            <p className="text-slate-700 text-lg leading-[1.8] whitespace-pre-wrap font-medium">
-              {MOCK_RESULT.analysis}
-            </p>
+            <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed font-medium">
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({...props}) => <h1 className="text-2xl font-bold text-slate-900 mt-8 mb-4" {...props} />,
+                  h2: ({...props}) => <h2 className="text-xl font-bold text-slate-800 mt-6 mb-3" {...props} />,
+                  h3: ({...props}) => <h3 className="text-lg font-bold text-slate-800 mt-4 mb-2" {...props} />,
+                  p: ({...props}) => <p className="mb-4 leading-[1.8]" {...props} />,
+                  ul: ({...props}) => <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />,
+                  ol: ({...props}) => <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />,
+                  li: ({...props}) => <li className="pl-1" {...props} />,
+                  blockquote: ({...props}) => (
+                    <blockquote className="border-l-4 border-purple-200 pl-4 italic text-slate-600 my-4" {...props} />
+                  ),
+                  strong: ({...props}) => <strong className="font-black text-purple-700" {...props} />,
+                }}
+              >
+                {resultData.analysis}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
 
-        {/* 공유하기 버튼 섹션 */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 py-8 border-t border-slate-200">
           <Button
             size="lg"
@@ -247,15 +279,14 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
           </Button>
         </div>
 
-        {/* 회원 전용: 꿈 아카이브 캘린더 (회원일 경우만 렌더링) */}
-        {isMember && (
+        {isMember && pastDates.length > 0 && (
           <div className="mt-16 bg-white p-8 rounded-3xl shadow-lg border border-slate-100 flex flex-col md:flex-row gap-8 items-start">
             <div className="flex-1 space-y-4">
               <h3 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <CalendarDays className="w-6 h-6 text-fuchsia-500" />나의 무의식 캘린더
               </h3>
               <p className="text-slate-500 leading-relaxed">
-                회원님은 꾸준히 자신의 꿈을 마주하고 계시네요.<br/>보라색으로 빛나는 날짜를 선택하면 과거의 해몽 결과를 다시 열어볼 수 있습니다.
+                회원님은 꾸준히 자신의 꿈을 마주하고 계시네요.<br/>보라색으로 빛나는 날짜를 확인해 보세요.
               </p>
             </div>
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
@@ -270,9 +301,9 @@ export const DreamResultClient = ({ orderId }: { orderId: string }) => {
                 modifiersStyles={{
                   hasDream: {
                     fontWeight: 'bold',
-                    backgroundColor: 'rgb(243 232 255)', // purple-100
-                    color: 'rgb(126 34 206)', // purple-700
-                    border: '1px solid rgb(216 180 254)', // purple-300
+                    backgroundColor: 'rgb(243 232 255)',
+                    color: 'rgb(126 34 206)',
+                    border: '1px solid rgb(216 180 254)',
                   }
                 }}
               />

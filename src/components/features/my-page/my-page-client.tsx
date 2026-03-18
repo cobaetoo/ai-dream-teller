@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -36,6 +36,11 @@ interface OrderWithResult {
   dream_results: {
     analysis_status: 'processing' | 'completed' | 'failed';
     id: string;
+    image_url?: string;
+  } | {
+    analysis_status: 'processing' | 'completed' | 'failed';
+    id: string;
+    image_url?: string;
   }[];
 }
 
@@ -50,6 +55,8 @@ const MyPageClient = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(3);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   // 유저 정보 및 주문 내역 가져오기
   useEffect(() => {
@@ -66,11 +73,28 @@ const MyPageClient = () => {
         try {
           const res = await fetch("/api/orders");
           const data = await res.json();
-          if (data.orders) {
-            setOrders(data.orders);
+          
+          if (!res.ok) {
+            const errorMsg = data.details 
+              ? `${data.error}: ${data.details}` 
+              : (data.error || "주문 내역을 불러오는데 실패했습니다.");
+            throw new Error(errorMsg);
           }
-        } catch (err) {
+
+          if (data.orders) {
+            console.log("MyPage orders fetched:", data.orders.length);
+            // dream_results가 객체로 올 경우 배열로 정규화
+            const normalizedOrders = data.orders.map((order: any) => ({
+              ...order,
+              dream_results: order.dream_results 
+                ? (Array.isArray(order.dream_results) ? order.dream_results : [order.dream_results])
+                : []
+            }));
+            setOrders(normalizedOrders);
+          }
+        } catch (err: any) {
           console.error("Orders fetch failed:", err);
+          setError(err.message);
         }
       } else {
         router.push("/auth");
@@ -91,24 +115,29 @@ const MyPageClient = () => {
 
     setIsUpdating(true);
     try {
-      // 1. Auth Metadata 업데이트
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { full_name: tempNickname, nickname: tempNickname }
+      // 보안 강화된 전용 PATCH API 호출 (PRD 8.2 No 5, 6 준수)
+      // 1. Zod 검증(XSS 방어) + 2. 세션 기반 권한 검사(IDOR 방어) 진행
+      const response = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          nickname: tempNickname,
+          id: user?.id // 세션과 비교를 위해 전달 (서버에서 세션 id와 다를 경우 차단)
+        }),
       });
 
-      if (authError) throw authError;
+      const data = await response.json();
 
-      // 2. Public.users 테이블 업데이트
-      const { error: dbError } = await supabase
-        .from('users')
-        .update({ nickname: tempNickname })
-        .eq('id', user?.id);
-
-      if (dbError) throw dbError;
+      if (!response.ok) {
+        throw new Error(data.details || data.error || "수정에 실패했습니다.");
+      }
 
       setNickname(tempNickname);
       setIsEditing(false);
       alert("닉네임이 성공적으로 수정되었습니다.");
+      
+      // 상태 갱신을 위해 페이지 리프레시 (Metadata 반영)
+      router.refresh();
     } catch (error: any) {
       console.error("Nickname update failed:", error);
       alert("닉네임 수정 중 오류가 발생했습니다: " + error.message);
@@ -140,6 +169,10 @@ const MyPageClient = () => {
   const handleLoadMore = () => {
     setVisibleCount((prev) => prev + 3);
   };
+
+  const filteredOrders = selectedDate 
+    ? orders.filter(order => isSameDay(new Date(order.created_at), selectedDate))
+    : orders;
 
   if (!user) return null;
 
@@ -281,8 +314,16 @@ const MyPageClient = () => {
               </div>
               <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-50">
                 <Calendar
-                  mode="multiple"
-                  selected={historyDates}
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (selectedDate && date && isSameDay(selectedDate, date)) {
+                      setSelectedDate(undefined);
+                    } else {
+                      setSelectedDate(date);
+                      setVisibleCount(3); // 필터 시 표시 개수 초기화
+                    }
+                  }}
                   locale={ko}
                   className="bg-transparent"
                   modifiers={{
@@ -309,16 +350,33 @@ const MyPageClient = () => {
                 </h3>
               </div>
               <div className="space-y-4">
-                {orders.length === 0 && !isLoading && (
+                {error && (
+                  <div className="bg-red-50 p-6 rounded-[2rem] border border-red-100 text-center space-y-2">
+                    <p className="text-red-600 font-bold">오류가 발생했습니다</p>
+                    <p className="text-red-500 text-sm">{error}</p>
+                    <Button onClick={() => window.location.reload()} variant="outline" size="sm" className="mt-2">다시 시도</Button>
+                  </div>
+                )}
+
+                {orders.length === 0 && !isLoading && !error && (
                   <div className="bg-white p-12 rounded-[2rem] border border-slate-100 text-center space-y-4">
                     <History className="w-12 h-12 text-slate-200 mx-auto" />
-                    <p className="text-slate-400 font-bold">아직 해몽 분석 내역이 없습니다.</p>
+                    <p className="text-slate-400 font-bold">아직 완료된 해몽 분석 내역이 없습니다.</p>
+                    <p className="text-slate-400 text-sm">꿈 해몽을 요청하고 결제가 완료되면 이곳에 나타납니다.</p>
                     <Button onClick={() => router.push("/")} variant="outline" className="rounded-full">첫 해몽 시작하기</Button>
                   </div>
                 )}
+
+                {orders.length > 0 && filteredOrders.length === 0 && !isLoading && !error && (
+                  <div className="bg-white p-12 rounded-[2rem] border border-slate-100 text-center space-y-4">
+                    <CalendarIcon className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-slate-400 font-bold">선택하신 {selectedDate && format(selectedDate, 'M월 d일')}에는 해몽 내역이 없습니다.</p>
+                    <Button onClick={() => setSelectedDate(undefined)} variant="outline" className="rounded-full">전체 보기</Button>
+                  </div>
+                )}
                 
-                {orders.slice(0, visibleCount).map((item) => {
-                  const result = item.dream_results?.[0];
+                {filteredOrders.slice(0, visibleCount).map((item) => {
+                  const result = (item.dream_results as any[])?.[0];
                   const isProcessing = result?.analysis_status === 'processing';
                   
                   return (
@@ -334,6 +392,13 @@ const MyPageClient = () => {
                             <div className="flex flex-col items-center justify-center w-full h-full bg-purple-50/50">
                               <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
                             </div>
+                          ) : result?.image_url ? (
+                            <Image 
+                              src={result.image_url} 
+                              alt="Generated Dream Image" 
+                              fill 
+                              className="object-cover group-hover:scale-110 transition-transform duration-500" 
+                            />
                           ) : (
                             <div className="relative flex items-center justify-center w-full h-full">
                               <div className="absolute inset-x-0 inset-y-0 bg-linear-to-br from-purple-500/5 to-pink-500/5 animate-pulse" />
@@ -365,7 +430,7 @@ const MyPageClient = () => {
                 })}
               </div>
 
-               {visibleCount < orders.length && (
+               {visibleCount < filteredOrders.length && (
                 <div className="flex justify-center pt-4">
                   <Button
                     variant="outline"

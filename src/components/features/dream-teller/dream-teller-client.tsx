@@ -202,7 +202,7 @@ export const DreamTellerClient = () => {
           includes_image: includeImage,
           total_amount: totalPrice,
           // 비회원 정보 전달
-          phone_number: !isLoggedIn ? phone.replace(/-/g, "") : undefined,
+          phone_number: !isLoggedIn ? phone : undefined,
           guest_password: !isLoggedIn ? guestPassword : undefined,
         }),
       });

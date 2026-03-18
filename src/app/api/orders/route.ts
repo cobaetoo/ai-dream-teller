@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
+import { guestSchema } from "@/lib/validations/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,10 +41,15 @@ export async function POST(req: NextRequest) {
       // 1. 회원 주문 처리
       targetUserId = user.id;
     } else {
-      // 2. 비회원(게스트) 주문 처리
-      if (!phone_number || !guest_password) {
+      // 비회원 입력값 검증 (Zod 활용)
+      const validation = guestSchema.safeParse({ phone_number, guest_password });
+      
+      if (!validation.success) {
         return NextResponse.json(
-          { error: "비회원 주문을 위해 연락처와 비밀번호를 입력해주세요." },
+          { 
+            error: "비회원 정보가 올바르지 않습니다.", 
+            details: validation.error.issues.map(e => e.message).join(", ") 
+          },
           { status: 400 }
         );
       }
@@ -70,6 +76,7 @@ export async function POST(req: NextRequest) {
         const { data: newGuest, error: createGuestError } = await serviceSupabase
           .from("users")
           .insert({
+            id: crypto.randomUUID(),
             role: "guest",
             provider: "guest",
             phone_number: phone_number,
@@ -145,21 +152,26 @@ export async function GET(req: NextRequest) {
     }
 
     // 본인의 전체 주문 목록 조회, 최신순 정렬 (해몽 결과 상태 포함)
+    console.log("Fetching orders for user:", user.id);
     const { data: orders, error: fetchError } = await supabase
       .from("orders")
-      .select("*, dream_results(analysis_status, id)")
+      .select("*, dream_results:dream_results_order_id_fkey(analysis_status, id, image_url)")
       .eq("user_id", user.id)
       .eq("payment_status", "paid") // 결제 완료된 것만 보여줌
       .order("created_at", { ascending: false });
 
     if (fetchError) {
-      console.error("Fetch orders error:", fetchError);
+      console.error("Fetch orders DB full error:", JSON.stringify(fetchError, null, 2));
       return NextResponse.json(
-        { error: "Failed to fetch orders" },
+        { 
+          error: "Failed to fetch orders from database", 
+          details: `Error: ${fetchError.message} (Code: ${fetchError.code}, Hint: ${fetchError.hint})` 
+        },
         { status: 500 }
       );
     }
 
+    console.log(`Fetched ${orders?.length || 0} paid orders for user ${user.id}`);
     return NextResponse.json({ orders }, { status: 200 });
   } catch (error) {
     console.error("Get Orders API Error:", error);
