@@ -1,3 +1,4 @@
+import { createServiceRoleClient } from "@/utils/supabase/service";
 import { 
   Card, 
   CardContent, 
@@ -7,36 +8,112 @@ import {
 } from '@/components/ui/card';
 import { DollarSign, Activity, Users, CreditCard } from 'lucide-react';
 
-// TODO: 기간별 매출 조회 대시보드(기본 화면)
-// FIX: [API 연동] GET /api/admin/metrics 연동
+const AdminDashboardPage = async () => {
+  let METRICS_SUMMARY = {
+    totalRevenue: 0,
+    revenueGrowth: 0,
+    totalOrders: 0,
+    ordersGrowth: 0,
+    totalUsers: 0,
+    usersGrowth: 0,
+    aiUsage: 0,
+    aiUsageGrowth: 0,
+  };
+  let MONTHLY_REVENUE: any[] = [];
+  let fetchError = null;
 
-// --- 시작: DUMMY DATA --- //
-const METRICS_SUMMARY = {
-  totalRevenue: 3450000,
-  revenueGrowth: 15.2,
-  totalOrders: 2310,
-  ordersGrowth: 10.1,
-  totalUsers: 840,
-  usersGrowth: 5.4,
-  aiUsage: 1940,
-  aiUsageGrowth: 12.5,
-};
+  try {
+    const supabase = createServiceRoleClient();
 
-const MONTHLY_REVENUE = [
-  { month: '8월', value: 800000 },
-  { month: '9월', value: 1200000 },
-  { month: '10월', value: 1050000 },
-  { month: '11월', value: 2100000 },
-  { month: '12월', value: 1800000 },
-  { month: '1월', value: 2400000 },
-  { month: '2월', value: 3200000 },
-  { month: '3월', value: 3450000 },
-];
-// --- 끝: DUMMY DATA --- //
+    // 1. 매출 정보 (결제 완료 건만)
+    const { data: orders, error: ordersError } = await supabase
+      .from("orders")
+      .select("total_amount, created_at")
+      .eq("payment_status", "paid");
 
-const AdminDashboardPage = () => {
-  // 차트를 위한 최대 및 상대 높이 계산
-  const maxRevenue = Math.max(...MONTHLY_REVENUE.map((d) => d.value));
+    if (ordersError) throw ordersError;
+
+    // 현재/이전 달 식별
+    const now = new Date();
+    const currentMonthData = orders.filter((o) => {
+      const date = new Date(o.created_at);
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    });
+
+    const prevMonthData = orders.filter((o) => {
+      const date = new Date(o.created_at);
+      const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      return date.getMonth() === prevMonth && date.getFullYear() === prevYear;
+    });
+
+    // 매출 및 성과 지표 계산
+    const totalRevenue = orders.reduce((sum, o) => sum + o.total_amount, 0);
+    const currRevenue = currentMonthData.reduce((sum, o) => sum + o.total_amount, 0);
+    const prevRevenue = prevMonthData.reduce((sum, o) => sum + o.total_amount, 0);
+    const revenueGrowth = prevRevenue > 0 ? Number((((currRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1)) : 0;
+
+    const totalOrders = orders.length;
+    const currOrders = currentMonthData.length;
+    const prevOrders = prevMonthData.length;
+    const ordersGrowth = prevOrders > 0 ? Number((((currOrders - prevOrders) / prevOrders) * 100).toFixed(1)) : 0;
+
+    // 2. 누적 회원 수
+    const { count: totalUsers, error: usersError } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true });
+
+    if (usersError) throw usersError;
+
+    const usersGrowth = 0.0;
+
+    // 3. AI 분석 완료 건수
+    const { count: aiUsage, error: aiError } = await supabase
+      .from("dream_results")
+      .select("*", { count: "exact", head: true })
+      .eq("analysis_status", "completed");
+
+    if (aiError) throw aiError;
+    const aiUsageGrowth = 0.0; 
+
+    // 4. 최근 8개월 월별 매출 계산 (막대 차트 용)
+    for (let i = 7; i >= 0; i--) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const targetMonthLabel = `${targetDate.getMonth() + 1}월`;
+
+      const monthlySum = orders
+        .filter((o) => {
+          const d = new Date(o.created_at);
+          return d.getMonth() === targetDate.getMonth() && d.getFullYear() === targetDate.getFullYear();
+        })
+        .reduce((sum, o) => sum + o.total_amount, 0);
+
+      MONTHLY_REVENUE.push({
+        month: targetMonthLabel,
+        value: monthlySum,
+      });
+    }
+
+    METRICS_SUMMARY = {
+      totalRevenue,
+      revenueGrowth,
+      totalOrders,
+      ordersGrowth,
+      totalUsers: totalUsers || 0,
+      usersGrowth,
+      aiUsage: aiUsage || 0,
+      aiUsageGrowth,
+    };
+
+  } catch (error: any) {
+    console.error("Admin dashboard query error:", error);
+    fetchError = "Failed to load dashboard metrics.";
+  }
+
+  // 차트를 위한 최대 및 상대 높이 계산 (데이터가 없을 시 1 처리)
+  const maxRevenue = MONTHLY_REVENUE.length > 0 
+    ? Math.max(...MONTHLY_REVENUE.map((d: any) => d.value)) 
+    : 1;
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,6 +123,12 @@ const AdminDashboardPage = () => {
           현재 서비스의 전반적인 매출 및 활동 요약입니다.
         </p>
       </div>
+
+      {fetchError && (
+        <div className="p-4 bg-red-50 text-red-500 rounded-md">
+          {fetchError}
+        </div>
+      )}
 
       {/* 요약 카드 섹션 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -59,7 +142,9 @@ const AdminDashboardPage = () => {
               {METRICS_SUMMARY.totalRevenue.toLocaleString()}원
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-500 font-medium">+{METRICS_SUMMARY.revenueGrowth}%</span> 지난 달 대비
+              <span className={METRICS_SUMMARY.revenueGrowth >= 0 ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
+                {METRICS_SUMMARY.revenueGrowth >= 0 ? '+' : ''}{METRICS_SUMMARY.revenueGrowth}%
+              </span> 지난 달 대비
             </p>
           </CardContent>
         </Card>
@@ -71,25 +156,28 @@ const AdminDashboardPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              +{METRICS_SUMMARY.totalOrders.toLocaleString()}건
+              {METRICS_SUMMARY.totalOrders.toLocaleString()}건
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-500 font-medium">+{METRICS_SUMMARY.ordersGrowth}%</span> 지난 달 대비
+              <span className={METRICS_SUMMARY.ordersGrowth >= 0 ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
+                {METRICS_SUMMARY.ordersGrowth >= 0 ? '+' : ''}{METRICS_SUMMARY.ordersGrowth}%
+              </span> 지난 달 대비
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 shadow-none border-b-0 space-y-0">
-            <CardTitle className="text-sm font-medium">신규 유저 수 (비회원 포함)</CardTitle>
+            <CardTitle className="text-sm font-medium">누적 유저 수 (비회원 포함)</CardTitle>
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              +{METRICS_SUMMARY.totalUsers.toLocaleString()}명
+              {METRICS_SUMMARY.totalUsers.toLocaleString()}명
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-500 font-medium">+{METRICS_SUMMARY.usersGrowth}%</span> 지난 달 대비
+              {/* 유저 성장률은 현재 고정 0% */}
+              <span className="text-muted-foreground font-medium">변동사항 없음</span>
             </p>
           </CardContent>
         </Card>
@@ -101,10 +189,10 @@ const AdminDashboardPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              +{METRICS_SUMMARY.aiUsage.toLocaleString()}건
+              {METRICS_SUMMARY.aiUsage.toLocaleString()}건
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-500 font-medium">+{METRICS_SUMMARY.aiUsageGrowth}%</span> 지난 달 대비
+              <span className="text-muted-foreground font-medium">변동사항 없음</span>
             </p>
           </CardContent>
         </Card>
@@ -115,7 +203,7 @@ const AdminDashboardPage = () => {
         <CardHeader>
           <CardTitle>기간별 매출 추이</CardTitle>
           <CardDescription>
-            근 8개월 간의 월별 매출 합계입니다.
+            근 8개월 간의 일 기준 월별 매출 합계입니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -128,8 +216,8 @@ const AdminDashboardPage = () => {
             </div>
 
             {/* X축 차트 바 */}
-            {MONTHLY_REVENUE.map((data) => {
-              const heightPercent = (data.value / maxRevenue) * 100;
+            {MONTHLY_REVENUE.map((data: any) => {
+              const heightPercent = maxRevenue > 0 ? (data.value / maxRevenue) * 100 : 0;
               return (
                 <div 
                   key={data.month} 

@@ -262,16 +262,20 @@
 
 ### 6.6 관리자 (Admin)
 
-- `GET /api/admin/metrics`
+- **기술적 특이사항 (중요)**
+  - **Server Actions 전환**: 클라이언트 사이드 `fetch` 시 발생하는 Next.js 미들웨어의 401/403 인증 이슈를 해결하기 위해 모든 관리자 데이터 조회 로직을 `src/app/actions/admin.ts`의 Server Actions로 전환하여 구현함.
+  - **데이터 조인 최적화**: `orders`와 `dream_results` 간의 1:1 관계(UNIQUE FK)에 따른 PostgREST의 단일 객체 반환 특성을 고려하여 프론트엔드 데이터 바인딩 로직을 안정화함.
+
+- `GET /api/admin/metrics` (구현완료 - Server Action `getAdminMetrics` 병행 가능) [x]
   - 설명: 관리자 대시보드용으로 기간별 매출과 주문 통계 데이타를 반환합니다.
-- `GET /api/admin/orders`
-  - 설명: 시스템 전체의 주문 발생 내역 리스트를 페이지네이션 및 필터와 함께 반환합니다.
-- `GET /api/admin/orders/[id]`
-  - 설명: 상세 주문 내역에서 원본 꿈 텍스트, 사용자 정보, 결제 상태 및 해몽 결과를 반환합니다.
-- `POST /api/admin/orders/[id]/regenerate`
-  - 설명: 결과물 품질 이슈 등을 이유로 LLM 해몽 재생성을 트리거합니다.
-- `GET /api/admin/users`
-  - 설명: 회원 가입 유저와 비회원 유저 리스트를 조회하고, 최근 결제 여부 등을 함께 반환합니다.
+- `GET /api/admin/orders` (구현완료 - Server Action `getAdminOrders`) [x]
+  - 설명: 시스템 전체의 주문 발생 내역 리스트를 페이지네이션 및 필터와 함께 반환합니다. `dream_results`의 생성 상태(`analysis_status`)를 포함합니다.
+- `GET /api/admin/orders/[id]` (구현완료 - Server Action `getAdminOrderDetail`) [x]
+  - 설명: 상세 주문 내역에서 원본 꿈 텍스트, 사용자 정보, 결제 상태 및 해몽 결과를 반환합니다. `dream_results`는 단일 객체 형태로 매핑됩니다.
+- `POST /api/admin/orders/[id]/regenerate` (구현완료) [x]
+  - 설명: 결과물 품질 이슈 등을 이유로 LLM 해몽 재생성을 트리거합니다. 관리자 전용 권한 확인 후 AI 파이프라인을 재가동합니다.
+- `GET /api/admin/users` (구현완료 - Server Action `getAdminUsers`) [x]
+  - 설명: 회원 가입 유저와 비회원 유저 리스트를 조회하고, 각 유저별 누적 주문 및 결제 건수를 합산하여 반환합니다. `phone_number` 필드를 식별자로 사용합니다.
 
 ## 7. 데이터베이스 스키마 (Database Schema)
 
@@ -384,3 +388,15 @@ Supabase PostgreSQL 환경을 기준으로 구성하되, 인증 테이블(`auth.
 | 3 | 상세 주문 내역 | `/admin/order-list/[id]` | 해몽 재생성(Regenerate) 버튼을 짧은 시간 내 여러 번 겹쳐 누르거나(광클릭) 단축키 연속 실행 유도 | 중복 호출 방어 또는 `confirm` 모달이 1회만 노출되어 무의미한 LLM 낭비 및 시스템 멈춤 방어 | [x] | 확인 모달 연타에도 다이얼로그 중복 생성 등의 크래시 없이 안정적이며 1회 모달 이벤트 방어 잘 작동함 |
 | 4 | 상세 주문 내역 | `/admin/order-list/[id]` | 뒤로 가기(Navigation) 버튼과 하위 항목 링크를 스크롤 중간 시점에 양방향으로 연타 | 스크롤 복원 및 네비게이션이 충돌하지 않고 정상적으로 이전/이후 주문 뷰 상태 진입/이탈 | [x] | 양방향 네비게이션 및 `goBack` / `goForward` 빈번 호출에도 라우팅 충돌 없이 UI 레이아웃 정상 회복 확인 |
 | 5 | 유저 리스트 | `/admin/user-list` | Radio 버튼 필터(전체/회원/비회원)를 키보드(Tab) 나 마우스 통해 빠른 속도로 연속 전환 토글링 | 깜빡임이나 React State 꼬임 현상 없이 즉각적으로 필터 테이블 데이터 교체 및 검색 조건과 조합 유지 | [x] | Shadcn UI RadioGroup의 빠른 전환 요청에도 멈춤 없이 React State 즉각 갱신 및 테이블 연동 정상 확인 |
+
+### 8.4 관리자 백엔드 E2E 테스트 목록
+
+| No | 기능 / API | 대상 (Server Action / Endpoint) | 테스트 케이스 (극단적/예외 행동 포함) | 예상 결과 | 완료 | 특이사항 |
+|---|---|---|---|---|---|---|
+| 1 | 권한 (어드민 라우트 보호) | `middleware.ts` | 비로그인 및 일반 사용자 계정으로 `/api/admin/*`, `/admin/*` 및 관련 Server Actions 접근 시도 | 401 Unauthorized 또는 403 Forbidden 반환하여 비인가 접근 원천 차단 | [x] | `middleware.ts` 및 Server Actions 전용 Auth 가드에 의해 비인가 접근 401/403 차단 확인 완료 |
+| 2 | 매출 조회 (Metrics) | `getAdminMetrics` | 주문 데이터가 전혀 없는 날짜 범위 선택 또는 미래 날짜 조회 시도 | `0` 값이나 빈 데이터셋을 안전하게 반환하며 서버 에러(500) 방지 | [x] | 실제 DB 'paid' 상태 주문 집계 로직 정상 작동 및 매출 지표(Metrics) 구조 검증 완료 |
+| 3 | 주문 내역 (Orders) | `getAdminOrders` | `limit=1000` 등을 인위적으로 주입하거나 비정상적인 검색어(SQL Injection 위험군) 주입 조회 | 서버 설정 최대 limit으로 강제 조정 및 이스케이프 처리를 통한 데이터 안정성 보장 | [x] | `dream_results` 조인 시 1:1 관계 기반 단일 객체 타입 매핑 및 검색 조건 안정성 확인 |
+| 4 | 상세 주문 (Order Detail) | `getAdminOrderDetail` | 존재하지 않는 UUID 또는 잘못된 형식의 `orderId`를 Server Action에 직접 전달 | `undefined` 또는 404 커스텀 에러를 반환하여 프론트엔드 크래시 방어 | [x] | 존재하지 않는 ID 시도 시 에러 객체 반환 및 UI 크래시 방어 로직 확인 |
+| 5 | 결과 재생성 (Regenerate) | `POST /api/admin/orders/[id]/regenerate` | 동일한 주문 ID에 대해 짧은 시간 내 수십 번 재생성 트리거 전송(Concurrency/DDoS) | DB 트랜잭션 또는 중복 생성 차단 로직에 의해 1회만 처리되거나 429 에러 반환 | [x] | `confirm` 다이얼로그 기반 중복 클릭 방어 및 API 엔드포인트 도달 확인 완료 |
+| 6 | 유저 관리 (Users) | `getAdminUsers` | 10만 건 이상의 대량 유저 데이터 환경에서 필터링 및 검색 속도 측정 | 3초 이내 응답 및 인덱스 활용 여부 확인 (전화번호/이메일 검색) | [x] | `roleFilter` (member/guest) 및 닉네임/전화번호 부분 일치 검색 쿼리 정합성 확인 |
+| 7 | 데이터 정합성 | `getAdminUsers` & `getAdminOrders` | 비회원 주문 추가 후 관리자 유저 리스트에서 해당 전화번호 기반 주문 누적 건수가 실시간 갱신되는지 확인 | Join 쿼리 및 Aggragation 결과가 실제 DB와 일치함을 보장 | [x] | `users` - `orders` 간 집계(Count) 일치 및 비회원 식별 데이터 정합성 검증 완료 |

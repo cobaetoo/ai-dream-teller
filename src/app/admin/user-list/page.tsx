@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Search, 
@@ -12,7 +12,9 @@ import {
   Calendar,
   CheckCircle2,
   XCircle,
-  MoreVertical
+  MoreVertical,
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -24,89 +26,39 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getAdminUsers } from '@/app/actions/admin';
 import { 
   RadioGroup, 
   RadioGroupItem 
 } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 
-// TODO: 회원 및 비회원 필터링 가능 표 형식 리스트 구현 (결제여부 등 포함)
-// FIX: [API 연동] GET /api/admin/users 연동
-
-// --- 시작: DUMMY DATA --- //
-const DUMMY_USERS = [
-  {
-    id: 'usr_1',
-    nickname: '꿈꾸는나그네',
-    email: 'dreamer@example.com',
-    phone: '010-1111-2222',
-    role: 'member',
-    provider: 'google',
-    hasPaid: true,
-    orderCount: 3,
-    createdAt: '2024-03-01',
-  },
-  {
-    id: 'usr_2',
-    nickname: '010-1234-5678',
-    email: null,
-    phone: '010-1234-5678',
-    role: 'guest',
-    provider: 'guest',
-    hasPaid: true,
-    orderCount: 1,
-    createdAt: '2024-03-23',
-  },
-  {
-    id: 'usr_3',
-    nickname: '새벽감성',
-    email: 'dawn@kakao.com',
-    phone: '010-3333-4444',
-    role: 'member',
-    provider: 'kakao',
-    hasPaid: false,
-    orderCount: 0,
-    createdAt: '2024-03-22',
-  },
-  {
-    id: 'usr_4',
-    nickname: '신비한꿈',
-    email: 'mystic@gmail.com',
-    phone: '010-5555-6666',
-    role: 'member',
-    provider: 'google',
-    hasPaid: true,
-    orderCount: 5,
-    createdAt: '2024-02-15',
-  },
-  {
-    id: 'usr_5',
-    nickname: '010-9876-5432',
-    email: null,
-    phone: '010-9876-5432',
-    role: 'guest',
-    provider: 'guest',
-    hasPaid: false,
-    orderCount: 0,
-    createdAt: '2024-03-21',
-  },
-];
-// --- 끝: DUMMY DATA --- //
-
 const AdminUserListPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'member' | 'guest'>('all');
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredUsers = DUMMY_USERS.filter(user => {
-    const matchesSearch = 
-      user.nickname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      user.phone.includes(searchTerm);
-    
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+  const fetchUsers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const json = await getAdminUsers(searchTerm, roleFilter);
+      if (json.success) {
+        setUsers(json.data || []);
+      } else {
+        throw new Error(`[Server Action] ${json.error}`);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm, roleFilter]);
 
-    return matchesSearch && matchesRole;
-  });
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,7 +120,7 @@ const AdminUserListPage = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Users className="w-5 h-5 text-purple-600" />
-              전체 유저 ({filteredUsers.length}명)
+              전체 유저 ({users.length}명)
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative w-full md:w-72">
@@ -180,8 +132,8 @@ const AdminUserListPage = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon" title="필터">
-                <Filter className="h-4 w-4" />
+              <Button variant="outline" size="icon" title="다시 로드" onClick={() => fetchUsers()}>
+                <RotateCcw className={cn("h-4 w-4", isLoading && "animate-spin")} />
               </Button>
             </div>
           </div>
@@ -200,8 +152,17 @@ const AdminUserListPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        유저 목록을 불러오는 중...
+                      </div>
+                    </td>
+                  </tr>
+                ) : users.length > 0 ? (
+                  users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -216,9 +177,9 @@ const AdminUserListPage = () => {
                               {user.nickname}
                               <Badge variant="outline" className={cn(
                                 "h-4 px-1 text-[10px]",
-                                user.role === 'member' ? "border-purple-200 text-purple-600" : "border-gray-200 text-gray-500"
+                                user.role === 'member' ? "border-purple-200 text-purple-600" : (user.role === 'admin' ? "border-red-200 text-red-600" : "border-gray-200 text-gray-500")
                               )}>
-                                {user.role === 'member' ? '회원' : '비회원'}
+                                {user.role === 'admin' ? '관리자' : (user.role === 'member' ? '회원' : '비회원')}
                               </Badge>
                             </div>
                             <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
@@ -233,19 +194,19 @@ const AdminUserListPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-xs space-y-1">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 font-medium">
                             <Phone className="w-3 h-3 text-gray-400" />
-                            {user.phone}
+                            {user.phone_number || '-'}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <CreditCard className="w-3 h-3 text-gray-400" />
-                            <span className="capitalize">{user.provider}</span>
+                            <span className="capitalize">{user.provider || 'guest'}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center">
-                          {user.hasPaid ? (
+                          {user.has_paid ? (
                             <div className="flex items-center gap-1 text-green-600 font-medium text-xs">
                               <CheckCircle2 className="w-4 h-4" />
                               결제 유저
@@ -259,8 +220,8 @@ const AdminUserListPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center font-medium">
-                        {user.orderCount > 0 ? (
-                          <span className="text-purple-600">{user.orderCount}건</span>
+                        {user.order_count > 0 ? (
+                          <span className="text-purple-600">{user.order_count}건</span>
                         ) : (
                           <span className="text-gray-300">0건</span>
                         )}
@@ -268,7 +229,7 @@ const AdminUserListPage = () => {
                       <td className="px-6 py-4 text-center">
                         <div className="text-xs text-gray-500 flex items-center justify-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-gray-300" />
-                          {user.createdAt}
+                          {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -281,7 +242,7 @@ const AdminUserListPage = () => {
                 ) : (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
-                      검색 조건에 맞는 유저가 없습니다.
+                      {error ? `에러: ${error}` : '검색 조건에 맞는 유저가 없습니다.'}
                     </td>
                   </tr>
                 )}
@@ -291,10 +252,6 @@ const AdminUserListPage = () => {
           
           <div className="p-4 border-t flex items-center justify-between text-xs text-gray-400">
             <p>※ 비회원 유저 데이터는 전화번호 및 임시 계정으로 식별됩니다.</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>이전</Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>다음</Button>
-            </div>
           </div>
         </CardContent>
       </Card>

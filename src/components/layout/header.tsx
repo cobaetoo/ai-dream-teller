@@ -19,7 +19,10 @@ const Header = () => {
   const [user, setUser] = useState<User | null>(null);
   const supabase = createClient();
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     // 뷰포트 변경 시 드로어가 열려있다면 자동으로 닫음 (md 중단점 768px 기준)
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -51,38 +54,43 @@ const Header = () => {
 
   const isLoggedIn = !!user;
 
-  const NavLinks = () => (
-    <>
-      {!isLoggedIn ? (
-        <>
-          {/* 비회원 */}
-          <Link href="/guest-login" className="cursor-pointer">
-            <Button variant="ghost" className="w-full justify-start md:w-auto md:justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              비회원 주문조회
-            </Button>
-          </Link>
-          <Link href="/auth" className="cursor-pointer">
-            <Button className="w-full md:w-auto bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/20 transition-all cursor-pointer">
-              로그인
-            </Button>
-          </Link>
-        </>
-      ) : (
-        <>
-          {/* 회원 */}
-          <Link href="/my-page" className="w-full md:w-auto flex mt-2 md:mt-0 items-center gap-2">
-            <Avatar className="h-9 w-9 border-2 border-purple-500/50 hover:border-purple-400 cursor-pointer transition-colors">
-              <AvatarImage src={user?.user_metadata?.avatar_url} referrerPolicy="no-referrer" alt="user avatar" />
-              <AvatarFallback className="bg-purple-900 text-purple-200">
-                {user?.user_metadata?.full_name?.[0] || 'ME'}
-              </AvatarFallback>
-            </Avatar>
-            <span className="md:hidden font-medium text-purple-900">마이페이지</span>
-          </Link>
-        </>
-      )}
-    </>
-  );
+  const NavLinks = () => {
+    // 하이드레이션 이전에는 빈 화면(또는 스켈레톤, 최소한의 공통 구조)을 보여줘 트리 불일치(React.useId 에러)를 방어
+    if (!mounted) return <div className="h-9 w-24"></div>;
+
+    return (
+      <>
+        {!isLoggedIn ? (
+          <>
+            {/* 비회원 */}
+            <Link href="/guest-login" className="cursor-pointer">
+              <Button variant="ghost" className="w-full justify-start md:w-auto md:justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                비회원 주문조회
+              </Button>
+            </Link>
+            <Link href="/auth" className="cursor-pointer">
+              <Button className="w-full md:w-auto bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/20 transition-all cursor-pointer">
+                로그인
+              </Button>
+            </Link>
+          </>
+        ) : (
+          <>
+            {/* 회원 */}
+            <Link href="/my-page" className="w-full md:w-auto flex mt-2 md:mt-0 items-center gap-2">
+              <Avatar className="h-9 w-9 border-2 border-purple-500/50 hover:border-purple-400 cursor-pointer transition-colors">
+                <AvatarImage src={user?.user_metadata?.avatar_url} referrerPolicy="no-referrer" alt="user avatar" />
+                <AvatarFallback className="bg-purple-900 text-purple-200">
+                  {user?.user_metadata?.full_name?.[0] || 'ME'}
+                </AvatarFallback>
+              </Avatar>
+              <span className="md:hidden font-medium text-purple-900">마이페이지</span>
+            </Link>
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-black/5 bg-background/60 backdrop-blur-md">
