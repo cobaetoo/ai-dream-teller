@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import AdminSidebar from '@/components/layout/admin-sidebar';
 
 export const metadata: Metadata = {
   title: 'AI Dream Teller - 관리자',
@@ -9,16 +10,13 @@ interface AdminLayoutProps {
 }
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  // TODO: 관리자 페이지 좌측 네비게이션 패널 (매출 조회, 주문 내역 리스트 등) 구현
-  
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 border-r">
-        {/* 네비게이션 디자인 추가 */}
-        <span>관리자 네비게이션 패널</span>
-      </aside>
-      <main className="flex-1 p-8">
-        {children}
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50/50">
+      <AdminSidebar />
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {children}
+        </div>
       </main>
     </div>
   );
