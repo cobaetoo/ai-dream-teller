@@ -9,7 +9,11 @@ import { NextRequest } from "next/server";
 export const POST = async (request: NextRequest) => {
   const formData = await request.formData();
   const provider = formData.get("provider") as string;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  
+  // 배포 환경과 로컬 환경을 모두 지원하기 위해 동적으로 호스트 감지
+  const protocol = request.headers.get("x-forwarded-proto") || "http";
+  const host = request.headers.get("host") || "localhost:3000";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
 
   // PRD 8.2.1: 지원하지 않는 provider 혹은 빈 값인 경우 400 반환
   if (!provider || (provider !== "google" && provider !== "kakao")) {
@@ -24,7 +28,7 @@ export const POST = async (request: NextRequest) => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider as "google" | "kakao",
     options: {
-      // 인증 성공 후 돌아올 콜백 URL
+      // 인증 성공 후 돌아올 콜백 URL (siteUrl은 이제 호스트 명에 따라 동적)
       redirectTo: `${siteUrl}/api/auth/callback`,
     },
   });

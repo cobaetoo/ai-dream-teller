@@ -134,8 +134,9 @@ export async function confirmPaymentAction({
     await sendTelegramMessage(successMsg);
 
     // 5. [비동기] AI 해몽 로직 호출 (생성 요청만 던짐)
-    // 실제 운영 환경에서는 Vercel Function (Trigger) 혹은 외부 큐 연동 권장
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    // 배포 환경과 로컬 환경을 모두 지원하기 위해 동적으로 호스트 감지
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    const baseUrl = siteUrl || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
     
     // 이 호출은 AI 분석을 시작하라는 신호만 보냅니다. (Fire & Forget 가능하도록)
     fetch(`${baseUrl}/api/ai/generate`, {
