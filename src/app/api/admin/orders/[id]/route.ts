@@ -3,7 +3,7 @@ import { createServiceRoleClient } from "@/utils/supabase/service";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // URL에서 id 파라미터를 가져온다. (Next.js 15 이상 버전 대응 위해 비동기로 호출 권장되지만, 여기선 동기적 접근)
