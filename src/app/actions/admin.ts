@@ -6,12 +6,15 @@ import { revalidatePath } from "next/cache";
 
 /**
  * 어드민 권한 확인용 헬퍼
+ * 인증 실패 시 에러를 던집니다 (Action의 try-catch에서 처리됨)
  */
 async function checkAdminAuth() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return { success: false, error: "Unauthorized: Login required" };
+  if (!user) {
+    throw new Error("Unauthorized: Login required");
+  }
 
   const { data: userData } = await supabase
     .from("users")
@@ -20,10 +23,10 @@ async function checkAdminAuth() {
     .single();
 
   if (!userData || userData.role !== "admin") {
-    return { success: false, error: "Forbidden: Admin access only" };
+    throw new Error("Forbidden: Admin access only");
   }
 
-  return { success: true, userId: user.id };
+  return user.id;
 }
 
 /**
@@ -31,8 +34,7 @@ async function checkAdminAuth() {
  */
 export async function getAdminOrderDetail(orderId: string) {
   try {
-    const auth = await checkAdminAuth();
-    if (!auth.success) return auth;
+    await checkAdminAuth();
 
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase
@@ -60,8 +62,7 @@ export async function getAdminOrderDetail(orderId: string) {
  */
 export async function getAdminOrders(search = '', limit = 10, offset = 0) {
   try {
-    const auth = await checkAdminAuth();
-    if (!auth.success) return auth;
+    await checkAdminAuth();
 
     const supabase = createServiceRoleClient();
     let query = supabase
@@ -81,7 +82,7 @@ export async function getAdminOrders(search = '', limit = 10, offset = 0) {
     const { data, count, error } = await query;
     if (error) throw error;
     
-    return { success: true, data, count: count || 0 };
+    return { success: true, data: data || [], count: count || 0 };
   } catch (error: any) {
     console.error("Admin Action Error [getAdminOrders]:", error);
     return { success: false, error: error.message || "Failed to fetch orders via Action" };
@@ -93,8 +94,7 @@ export async function getAdminOrders(search = '', limit = 10, offset = 0) {
  */
 export async function getAdminUsers(search = '', roleFilter = 'all', limit = 10, offset = 0) {
   try {
-    const auth = await checkAdminAuth();
-    if (!auth.success) return auth;
+    await checkAdminAuth();
 
     const supabase = createServiceRoleClient();
     let query = supabase
@@ -123,7 +123,7 @@ export async function getAdminUsers(search = '', roleFilter = 'all', limit = 10,
         total_orders: user.orders?.length || 0,
         paid_orders: paidOrdersCount,
       };
-    });
+    }) || [];
 
     return { success: true, data: formattedUsers, count: count || 0 };
   } catch (error: any) {
@@ -137,8 +137,7 @@ export async function getAdminUsers(search = '', roleFilter = 'all', limit = 10,
  */
 export async function regenerateAdminOrderResult(orderId: string, origin: string) {
   try {
-    const auth = await checkAdminAuth();
-    if (!auth.success) return auth;
+    await checkAdminAuth();
 
     const supabase = createServiceRoleClient();
 
