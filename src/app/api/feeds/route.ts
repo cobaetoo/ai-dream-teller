@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const { data: feeds, error, count } = await supabase
       .from('dream_results')
-      .select('*, orders!inner(dream_content, expert_field, created_at, user_id)', { count: 'exact' })
+      .select('id, analysis_text, image_url, created_at, orders!inner(dream_content, expert_field, created_at)', { count: 'exact' })
       .eq('is_public', true)
       .eq('analysis_status', 'completed')
       .order('created_at', { ascending: false })

@@ -11,7 +11,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Brain, Sparkles, Image as ImageIcon, AlertCircle, ArrowRight, Zap, Eye, Asterisk, Expand, Shrink, ChevronRight, CheckCircle2, Lock } from 'lucide-react';
+import { Brain, Sparkles, Image as ImageIcon, AlertCircle, ArrowRight, Zap, Eye, Asterisk, Expand, Shrink, ChevronRight, CheckCircle2, Lock, Loader2 } from 'lucide-react';
+import { DreamInput } from './dream-input';
+import { useCallback, memo } from 'react';
 
 const EXPERT_FIELDS = [
   {
@@ -67,11 +69,25 @@ export const DreamTellerClient = () => {
   const [dreamContent, setDreamContent] = useState('');
   const [includeImage, setIncludeImage] = useState(true); // AI 이미지 생성 옵션 기본 체크
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false); // 환불 규정 동의 여부
 
   // 실제 인증 상태 확인 및 동기화
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [phone, setPhone] = useState("");
   const [guestPassword, setGuestPassword] = useState("");
+
+  // Input change handler memoized to prevent re-creating functions on every render
+  const handleDreamContentChange = useCallback((value: string) => {
+    setDreamContent(value);
+  }, []);
+
+  const handleSelectedFieldChange = useCallback((value: string) => {
+    setSelectedField(value);
+  }, []);
+
+  const handleIncludeImageChange = useCallback((checked: boolean) => {
+    setIncludeImage(checked);
+  }, []);
   
   useEffect(() => {
     const supabase = createClient();
@@ -185,6 +201,12 @@ export const DreamTellerClient = () => {
         if (!openItems.includes('step-4')) handleNextStep('step-4');
         return;
       }
+    }
+    
+    // 3. 환불 규정 동의 체크
+    if (!agreedToTerms) {
+      alert("서비스 이용 및 환불 규정에 동의해주세요.");
+      return;
     }
     
     setIsSubmitting(true);
@@ -306,7 +328,7 @@ export const DreamTellerClient = () => {
                 <AccordionContent className="pt-4 pb-6">
                   <RadioGroup 
                     value={selectedField} 
-                    onValueChange={setSelectedField} 
+                    onValueChange={handleSelectedFieldChange} 
                     className="grid grid-cols-1 md:grid-cols-2 gap-4 outline-none"
                   >
                     {EXPERT_FIELDS.map((field) => (
@@ -375,18 +397,11 @@ export const DreamTellerClient = () => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pt-4 pb-6">
-                  <div className="relative group">
-                    <Textarea
-                      placeholder="어디서 누구와 있었나요? 어떤 감정을 느꼈나요? 기억나는 파편들을 모두 적어주실수록 분석이 정확해집니다."
-                      className="min-h-[240px] resize-y p-6 text-lg rounded-2xl border-black/10 bg-white/80 backdrop-blur-sm focus-visible:ring-pink-500/50 focus-visible:border-pink-500 transition-all shadow-xs group-hover:shadow-md"
-                      value={dreamContent}
-                      onChange={(e) => setDreamContent(e.target.value)}
-                      maxLength={3000}
-                    />
-                    <div className="absolute bottom-4 right-4 text-xs text-slate-400 font-medium bg-white/80 px-2 py-1 rounded-md backdrop-blur-sm pointer-events-none">
-                      {dreamContent.length.toLocaleString()} / 3,000자 (최소 20자 권장)
-                    </div>
-                  </div>
+                  <DreamInput 
+                    initialValue={dreamContent}
+                    onValueChange={handleDreamContentChange}
+                    maxLength={3000}
+                  />
 
                   <div className="mt-6 flex justify-end">
                     <Button 
@@ -447,7 +462,7 @@ export const DreamTellerClient = () => {
                           <Checkbox 
                             id="include-image" 
                             checked={includeImage} 
-                            onCheckedChange={(checked) => setIncludeImage(checked as boolean)}
+                            onCheckedChange={(checked) => handleIncludeImageChange(checked as boolean)}
                             className="w-5 h-5 min-w-[20px] rounded-md border-slate-300 data-[state=checked]:bg-pink-500 data-[state=checked]:border-pink-500 cursor-pointer"
                           />
                           <div>
@@ -533,33 +548,51 @@ export const DreamTellerClient = () => {
                         />
                       </div>
                     </div>
-                    <p className="mt-4 text-[12px] text-slate-400 flex items-start gap-1.5 px-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      나중에 비회원 주문 조회 시 필요한 정보입니다. 꼭 기억해 주세요!
-                    </p>
+                    <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-1.5 px-3">
+                      <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                        <p>입력하신 정보는 비회원 주문 조회 목적으로만 사용되며, <strong className="text-slate-700">분석 완료일로부터 30일 후 자동 파기</strong>됩니다.</p>
+                      </div>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               </div>
             )}
-           </Accordion>
+          </Accordion>
+ 
+           {/* 환불 및 이용 동의 섹션 (Compliance) */}
+           <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+             <div className="flex items-start gap-3">
+               <Checkbox 
+                 id="terms-agree" 
+                 checked={agreedToTerms} 
+                 onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                 className="mt-1 w-5 h-5 rounded-md border-slate-300 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600 cursor-pointer"
+               />
+               <Label htmlFor="terms-agree" className="text-sm leading-relaxed cursor-pointer font-medium text-slate-700">
+                 [필수] 결제 완료 후 즉시 AI 분석이 시작되므로 <span className="text-purple-700 font-bold">단순 변심에 의한 환불 및 취소가 불가</span>함에 동의하며, 위 기재한 내용으로 해몽 분석을 요청합니다.
+               </Label>
+             </div>
+           </div>
 
-          {/* Warning Notes */}
-          <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-5 flex items-start gap-3 mt-8">
-            <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
-            <div className="text-sm text-slate-700 space-y-1.5 leading-relaxed">
-              <p>• 분석 완료까지는 결제 후 <strong className="font-semibold text-orange-600">보통 1~3분</strong>이 소요됩니다.</p>
-              <p>• 본 해몽은 AI 모델의 상징학적/심리학적 분석을 기반으로 하며, 의료 목적의 진단을 대체하지 않습니다.</p>
-              <p>• 생성된 해석결과 및 이미지는 자기 이해를 위한 재미 및 참고 자료로만 활용해주세요.</p>
-            </div>
-          </div>
+           {/* Warning Notes */}
+           <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-5 flex items-start gap-3 mt-4">
+             <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+             <div className="text-sm text-slate-700 space-y-1.5 leading-relaxed">
+               <p>• 분석 완료까지는 결제 후 <strong className="font-semibold text-orange-600">보통 1~3분</strong>이 소요됩니다.</p>
+               <p>• <strong className="font-semibold">환불 안내:</strong> 본 상품은 디지털 콘텐츠의 특성상 제공 개시 후 청약철회가 제한됩니다. 시스템 오류 발생 시에는 전액 환불됩니다.</p>
+               <p>• <strong className="font-semibold">데이터 프라이버시:</strong> 입력하신 꿈 내용은 AI 모델 학습에 활용되지 않으며, 오직 일회성 해몽 분석 및 이미지 생성 목적으로만 사용됩니다.</p>
+               <p>• 본 해몽은 AI 모델의 상징학적/심리학적 분석을 기반으로 하며, 의료 목적의 진단을 대체하지 않습니다.</p>
+             </div>
+           </div>
 
           {/* Submit Action Block */}
           <div className="sticky bottom-6 z-20 pt-4 pb-2 bg-linear-to-t from-background via-background to-transparent md:static md:bg-none md:p-0">
             <Button 
               type="submit" 
               size="lg" 
-              className="w-full h-16 text-lg rounded-2xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-[0_8px_30px_rgba(168,85,247,0.3)] hover:shadow-[0_8px_40px_rgba(168,85,247,0.4)] transition-all cursor-pointer group"
-              disabled={isSubmitting}
+              className="w-full h-16 text-lg rounded-2xl bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-[0_8px_30px_rgba(168,85,247,0.3)] hover:shadow-[0_8px_40px_rgba(168,85,247,0.4)] transition-all cursor-pointer group disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+              disabled={isSubmitting || !agreedToTerms}
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-3">

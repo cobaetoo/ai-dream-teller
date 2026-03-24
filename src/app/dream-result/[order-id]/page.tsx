@@ -5,10 +5,55 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "꿈 해몽 결과 | AI Dream Teller",
-  description: "당신의 꿈에 대한 심층적인 AI 해몽 결과입니다.",
-};
+// SEO Metadata dynamically generated based on dream content
+export async function generateMetadata({ params }: DreamResultPageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const orderId = resolvedParams["order-id"];
+  const serviceClient = createServiceRoleClient();
+
+  // Fetch only necessary columns for metadata
+  const { data: orderData } = await serviceClient
+    .from("orders")
+    .select("dream_content, expert_field, dream_results(image_url)")
+    .eq("id", orderId)
+    .single();
+
+  if (!orderData) {
+    return { title: "결과를 찾을 수 없음 | AI Dream Teller" };
+  }
+
+  const dreamSnippet = orderData.dream_content.length > 30 
+    ? orderData.dream_content.substring(0, 30) + "..." 
+    : orderData.dream_content;
+  
+  const expertMap: Record<string, string> = {
+    freud: "프로이트",
+    jung: "칼 융",
+    neuroscience: "신경과학",
+    gestalt: "게슈탈트"
+  };
+  const expertName = expertMap[orderData.expert_field] || "AI";
+  const imageUrl = Array.isArray(orderData.dream_results) 
+    ? orderData.dream_results[0]?.image_url 
+    : (orderData.dream_results as any)?.image_url;
+
+  return {
+    title: `[${expertName} 분석] ${dreamSnippet} | AI Dream Teller`,
+    description: `'${dreamSnippet}' 꿈의 심층 해석 리포트입니다.`,
+    openGraph: {
+      title: `${expertName}의 관점으로 분석한 당신의 무의식`,
+      description: orderData.dream_content.substring(0, 100),
+      images: imageUrl ? [imageUrl] : [],
+      type: "article",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${expertName}의 꿈 해몽 결과`,
+      description: dreamSnippet,
+      images: imageUrl ? [imageUrl] : [],
+    }
+  };
+}
 
 interface DreamResultPageProps {
   params: Promise<{
@@ -34,7 +79,10 @@ const DreamResultPage = async ({ params }: DreamResultPageProps) => {
   // 2. Fetch Order Data Bypassing RLS
   const { data: orderData, error: orderError } = await serviceClient
     .from("orders")
-    .select("*, dream_results(*)")
+    .select(`
+      id, user_id, dream_content, expert_field, created_at, payment_status,
+      dream_results ( id, analysis_text, image_url, is_public, created_at, analysis_status )
+    `)
     .eq("id", orderId)
     .single();
 
@@ -86,13 +134,15 @@ const DreamResultPage = async ({ params }: DreamResultPageProps) => {
   }
 
   return (
-    <DreamResultClient 
-      orderId={orderId} 
-      initialData={resultData}
-      isOwner={isOwner}
-      pastDates={pastDates}
-      isMember={isMember}
-    />
+    <div className="w-full">
+      <DreamResultClient 
+        orderId={orderId} 
+        initialData={resultData}
+        isOwner={isOwner}
+        pastDates={pastDates}
+        isMember={isMember}
+      />
+    </div>
   );
 };
 

@@ -25,7 +25,7 @@ export async function confirmPaymentAction({
     // 1. Supabase에서 주문서 조회 (RLS 우회를 위해 serviceSupabase 사용)
     const { data: order, error: orderError } = await serviceSupabase
       .from("orders")
-      .select("*")
+      .select("id, user_id, payment_status, total_amount, dream_content, expert_field, includes_image")
       .eq("order_number", orderId)
       .single();
 

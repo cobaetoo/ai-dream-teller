@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
 import { getAdminOrderDetail, regenerateAdminOrderResult } from '@/app/actions/admin';
 
 const OrderDetailContainer = ({ orderId }: { orderId: string }) => {
@@ -267,10 +268,12 @@ const OrderDetailContainer = ({ orderId }: { orderId: string }) => {
                   </div>
                   {dreamResult?.image_url ? (
                     <div className="relative aspect-video rounded-xl overflow-hidden border">
-                      <img 
+                      <Image 
                         src={dreamResult.image_url} 
                         alt="AI Generated Dream" 
-                        className="object-cover w-full h-full"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 800px"
                       />
                     </div>
                   ) : (

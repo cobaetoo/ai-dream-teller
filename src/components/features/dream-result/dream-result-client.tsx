@@ -17,6 +17,7 @@ import {
   Brain,
   MessageCircleQuestion,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
@@ -24,6 +25,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { toggleDreamPublicAction } from "@/app/actions/dream-result";
 import { useTransition } from "react";
+import Image from "next/image";
 
 // 카카오 SDK 타입 정의
 declare global {
@@ -208,11 +210,13 @@ export const DreamResultClient = ({
         {resultData.imageUrl && (
           <div className="relative w-full aspect-21/9 rounded-3xl overflow-hidden shadow-2xl shadow-purple-900/10 group">
             <div className="absolute inset-0 bg-linear-to-r from-purple-500/20 to-pink-500/20 mix-blend-overlay z-10" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={resultData.imageUrl}
               alt="AI가 그려낸 꿈의 한 장면"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              fill
+              priority
+              className="object-cover group-hover:scale-105 transition-transform duration-700"
+              sizes="(max-width: 1024px) 100vw, 896px"
             />
             <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/20">
               <p className="text-white text-xs font-medium flex items-center gap-1.5">
@@ -251,6 +255,16 @@ export const DreamResultClient = ({
               >
                 {resultData.analysis}
               </ReactMarkdown>
+            </div>
+          </div>
+          
+          {/* Disclaimer (Compliance) */}
+          <div className="mt-8 pt-6 border-t border-slate-100 flex items-start gap-3 text-xs text-slate-400 bg-slate-50/50 p-4 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p>• 본 해설 및 이미지는 AI 모델에 기반한 보조적 지표이며, 의학적/전문적 진단을 대체하지 않습니다.</p>
+              <p>• 생성된 산출물은 사용자의 개인적 참고용이며, 비상업적 목적(SNS 공유 등)에 한해 자유롭게 활용하실 수 있습니다.</p>
+              <p>• 결과 내용에 따른 최종 판단과 행동의 책임은 사용자 본인에게 있음을 알려드립니다.</p>
             </div>
           </div>
         </div>

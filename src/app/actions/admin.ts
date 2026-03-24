@@ -40,7 +40,8 @@ export async function getAdminOrderDetail(orderId: string) {
     const { data, error } = await supabase
       .from("orders")
       .select(`
-        *,
+        id, order_number, total_amount, payment_status, created_at, 
+        dream_content, expert_field, includes_image,
         users ( nickname, email, phone_number, role, provider ),
         dream_results ( analysis_text, image_url, analysis_status, created_at )
       `)
@@ -69,7 +70,8 @@ export async function getAdminOrders(search = '', limit = 10, offset = 0) {
     let query = supabase
       .from("orders")
       .select(`
-        *,
+        id, order_number, total_amount, payment_status, created_at, 
+        expert_field, includes_image,
         users ( nickname, role ),
         dream_results ( analysis_status )
       `, { count: "exact" })
@@ -149,7 +151,7 @@ export async function regenerateAdminOrderResult(orderId: string, origin: string
     // 1. 주문 확인
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("*")
+      .select("id")
       .eq("id", orderId)
       .single();
 

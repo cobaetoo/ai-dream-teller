@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
 import { formatDistanceToNow } from "date-fns";
@@ -156,10 +157,11 @@ const FeedCard = ({ feed }: FeedCardProps) => {
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-3">
           {/* 아바타 */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={avatarUrl}
             alt="프로필"
+            width={40}
+            height={40}
             className="w-10 h-10 rounded-full object-cover border border-slate-200 bg-slate-50"
           />
           <div>
@@ -198,12 +200,15 @@ const FeedCard = ({ feed }: FeedCardProps) => {
         <div className="mx-4 mb-4 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden group-hover:bg-slate-100 transition-colors">
           {/* 이미지 영역 (있는 경우) */}
           {feed.image_url && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={feed.image_url}
-              alt="AI 시각화 이미지"
-              className="w-full aspect-video object-cover"
-            />
+            <div className="relative w-full aspect-video">
+              <Image
+                src={feed.image_url}
+                alt="AI 시각화 이미지"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 800px"
+              />
+            </div>
           )}
           <div className="p-3">
             <p className="text-xs text-purple-600 font-semibold uppercase tracking-wider mb-1">
