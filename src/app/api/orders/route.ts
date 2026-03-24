@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { guestSchema } from "@/lib/validations/auth";
+import { orderSchema } from "@/lib/validations/order";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,17 +14,22 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     const body = await req.json();
-    const { dream_content, expert_field, includes_image, total_amount, phone_number, guest_password } = body;
-
-    // 파라미터 유효성 검증
-    if (!dream_content || !expert_field || total_amount === undefined) {
+    
+    // 1. Zod를 통한 통합 데이터 검증 (PRD 9.2 item 1, 2 반영)
+    const validation = orderSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "필수 정보가 누락되었습니다." },
+        { 
+          error: "입력 정보가 올바르지 않습니다.", 
+          details: validation.error.issues.map((i: any) => i.message).join(", ") 
+        },
         { status: 400 }
       );
     }
 
-    // 금액 검증 로직을 DB 접근 전(초반)으로 이동 (PRD 6.3 - 금액 위변조 조기 차단)
+    const { dream_content, expert_field, includes_image, total_amount, phone_number, guest_password } = validation.data;
+
+    // 2. 금액 재검증 로직 (위변조 조기 차단 - PRD 6.3)
     const baseAmount = 1500;
     const additionalAmount = includes_image ? 500 : 0;
     const calculatedAmount = baseAmount + additionalAmount;
@@ -79,9 +85,9 @@ export async function POST(req: NextRequest) {
             id: crypto.randomUUID(),
             role: "guest",
             provider: "guest",
-            phone_number: phone_number,
-            guest_password_hash: guest_password,
-            nickname: `손님_${phone_number.slice(-4)}`,
+            phone_number: phone_number as string,
+            guest_password_hash: guest_password as string,
+            nickname: `손님_${(phone_number as string).slice(-4)}`,
           })
           .select()
           .single();

@@ -44,6 +44,7 @@ export async function getAdminOrderDetail(orderId: string) {
         users ( nickname, email, phone_number, role, provider ),
         dream_results ( analysis_text, image_url, analysis_status, created_at )
       `)
+      .neq("users.role", "admin") // (Optional: extra safety logic if needed, but here simple exclusion)
       .eq("id", orderId)
       .single();
 
@@ -113,7 +114,11 @@ export async function getAdminUsers(search = '', roleFilter = 'all', limit = 10,
       query = query.or(`nickname.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%`);
     }
 
-    const { data: users, count, error } = await query;
+    // password_hash 등 민감 정보 제외 (Front-end 노출 방어 - PRD 9.5)
+    const { data: users, count, error } = await query.select(`
+      id, created_at, role, nickname, email, phone_number, provider,
+      orders ( id, payment_status )
+    `);
     if (error) throw error;
 
     const formattedUsers = users?.map((user) => {

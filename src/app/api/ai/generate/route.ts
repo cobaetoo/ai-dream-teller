@@ -78,10 +78,19 @@ export async function POST(req: NextRequest) {
         제시된 전문가의 관점(예: 프로이트, 칼 융, 신경과학 등)을 바탕으로, 꿈에 나타난 상징이나 무의식적 의미를 심층적으로 분석하여 Markdown 형식으로 친절하게 답변해주세요.
       `;
 
-      // 텍스트 생성 (타임아웃 적용 시그널은 REST API 호출 시 용이하나 SDK는 별도 래핑 필요할 수 있음)
-      // 여기서는 SDK 호출을 AbortSignal과 함께 관리하도록 처리
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
+      // 텍스트 생성 (SDK가 AbortSignal을 지원하지 않을 수 있으므로 Promise.race로 강제 타임아웃 처리)
+      const aiResponse = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => 
+          setTimeout(() => {
+            const error = new Error("Gemini API Timeout");
+            error.name = "AbortError";
+            reject(error);
+          }, 50000)
+        )
+      ]) as any;
+
+      const response = await aiResponse.response;
       analysisContent = response.text();
     } catch (aiTextError: any) {
       if (aiTextError.name === 'AbortError') {

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createServiceRoleClient } from "@/utils/supabase/service";
 import { sendTelegramMessage } from "@/utils/telegram";
+import { maskUserId } from "@/utils/masking";
 
 export async function confirmPaymentAction({
   paymentKey,
@@ -48,7 +49,7 @@ export async function confirmPaymentAction({
        
        if (orderOwner?.role === 'guest') {
          isGuestOrder = true;
-         userIdForNotice = `비회원(${orderOwner.id.substring(0, 8)}...)`;
+         userIdForNotice = `비회원(${maskUserId(orderOwner.id)})`;
        }
 
        if (orderOwner?.role === 'member' && (!user || user.id !== order.user_id)) {
