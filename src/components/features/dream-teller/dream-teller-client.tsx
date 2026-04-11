@@ -561,29 +561,44 @@ export const DreamTellerClient = () => {
           </Accordion>
  
            {/* 환불 및 이용 동의 섹션 (Compliance) */}
-           <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-             <div className="flex items-start gap-3">
+           <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+             <label htmlFor="terms-agree" className="flex items-start gap-3 cursor-pointer">
                <Checkbox 
                  id="terms-agree" 
                  checked={agreedToTerms} 
                  onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
-                 className="mt-1 w-5 h-5 rounded-md border-slate-300 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600 cursor-pointer"
+                 className="mt-0.5 w-5 h-5 min-w-[20px] shrink-0 rounded-md border-slate-300 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600 cursor-pointer"
                />
-               <Label htmlFor="terms-agree" className="text-sm leading-relaxed cursor-pointer font-medium text-slate-700">
+               <span className="text-sm leading-relaxed font-medium text-slate-700">
                  [필수] 결제 완료 후 즉시 AI 분석이 시작되므로 <span className="text-purple-700 font-bold">단순 변심에 의한 환불 및 취소가 불가</span>함에 동의하며, 위 기재한 내용으로 해몽 분석을 요청합니다.
-               </Label>
-             </div>
+               </span>
+             </label>
            </div>
 
            {/* Warning Notes */}
-           <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-5 flex items-start gap-3 mt-4">
-             <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
-             <div className="text-sm text-slate-700 space-y-1.5 leading-relaxed">
-               <p>• 분석 완료까지는 결제 후 <strong className="font-semibold text-orange-600">보통 1~3분</strong>이 소요됩니다.</p>
-               <p>• <strong className="font-semibold">환불 안내:</strong> 본 상품은 디지털 콘텐츠의 특성상 제공 개시 후 청약철회가 제한됩니다. 시스템 오류 발생 시에는 전액 환불됩니다.</p>
-               <p>• <strong className="font-semibold">데이터 프라이버시:</strong> 입력하신 꿈 내용은 AI 모델 학습에 활용되지 않으며, 오직 일회성 해몽 분석 및 이미지 생성 목적으로만 사용됩니다.</p>
-               <p>• 본 해몽은 AI 모델의 상징학적/심리학적 분석을 기반으로 하며, 의료 목적의 진단을 대체하지 않습니다.</p>
+           <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-6 mt-4">
+             <div className="flex items-start gap-3 mb-4">
+               <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+               <h3 className="font-bold text-slate-900">결제 전 확인해 주세요</h3>
              </div>
+             <ul className="space-y-3">
+               <li className="flex gap-2 text-sm text-slate-700 leading-relaxed items-start">
+                 <span className="text-orange-500 mt-1.5 w-1 h-1 rounded-full bg-orange-500 shrink-0" />
+                 <p>분석 완료까지는 결제 후 <strong className="font-semibold text-orange-600">보통 1~3분</strong>이 소요됩니다.</p>
+               </li>
+               <li className="flex gap-2 text-sm text-slate-700 leading-relaxed items-start">
+                 <span className="text-orange-500 mt-1.5 w-1 h-1 rounded-full bg-orange-500 shrink-0" />
+                 <p><strong className="font-semibold text-slate-900">환불 안내:</strong> 본 상품은 디지털 콘텐츠의 특성상 제공 개시 후 청약철회가 제한됩니다. 시스템 오류 발생 시에는 전액 환불됩니다.</p>
+               </li>
+               <li className="flex gap-2 text-sm text-slate-700 leading-relaxed items-start">
+                 <span className="text-orange-500 mt-1.5 w-1 h-1 rounded-full bg-orange-500 shrink-0" />
+                 <p><strong className="font-semibold text-slate-900">데이터 프라이버시:</strong> 입력하신 꿈 내용은 AI 모델 학습에 활용되지 않으며, 오직 일회성 해몽 분석 및 이미지 생성 목적으로만 사용됩니다.</p>
+               </li>
+               <li className="flex gap-2 text-sm text-slate-700 leading-relaxed items-start">
+                 <span className="text-orange-500 mt-1.5 w-1 h-1 rounded-full bg-orange-500 shrink-0" />
+                 <p>본 해몽은 AI 모델의 상징학적/심리학적 분석을 기반으로 하며, 의료 목적의 진단을 대체하지 않습니다.</p>
+               </li>
+             </ul>
            </div>
 
           {/* Submit Action Block */}
