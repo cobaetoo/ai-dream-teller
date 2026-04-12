@@ -140,6 +140,24 @@ const AdminDashboardPage = async () => {
     ? Math.max(...MONTHLY_REVENUE.map((d: any) => d.value)) 
     : 1;
 
+  // --- 추세선 SVG 경로 계산 (viewBox 0 0 100 100 퍼센트 좌표계) ---
+  const trendPoints = MONTHLY_REVENUE.map((d, i) => ({
+    // WHY: 각 막대의 중앙에 점을 배치하기 위해 (index + 0.5) / total * 100 사용
+    x: ((i + 0.5) / MONTHLY_REVENUE.length) * 100,
+    // WHY: y를 5~95 범위로 매핑하여 상하단에서 선이 잘리지 않도록 여유 확보
+    y: maxRevenue > 0 ? (1 - d.value / maxRevenue) * 90 + 5 : 95,
+    // 원본 퍼센트 (데이터 포인트 div 배치용)
+    rawPercent: maxRevenue > 0 ? (d.value / maxRevenue) * 100 : 0,
+  }));
+
+  const linePath = trendPoints.length > 0 
+    ? `M ${trendPoints[0].x} ${trendPoints[0].y} ` + trendPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
+    : "";
+
+  const areaPath = linePath 
+    ? `${linePath} L ${trendPoints[trendPoints.length - 1].x} 100 L ${trendPoints[0].x} 100 Z`
+    : "";
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -237,6 +255,54 @@ const AdminDashboardPage = async () => {
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="w-full border-t border-dashed border-gray-200"></div>
+              ))}
+            </div>
+
+            {/* 추세선 (SVG Layer) - 선과 영역 그라데이션 */}
+            <svg 
+              className="absolute inset-0 w-full pointer-events-none z-20"
+              style={{ height: 'calc(100% - 24px)' }}
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#a855f7" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              
+              {/* 선 아래 소프트 그라데이션 영역 */}
+              {areaPath && (
+                <path d={areaPath} fill="url(#trendGradient)" />
+              )}
+              
+              {/* 추세선 */}
+              {linePath && (
+                <path 
+                  d={linePath} 
+                  fill="none" 
+                  stroke="#a855f7" 
+                  strokeWidth="2.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+            </svg>
+
+            {/* 데이터 포인트 (별도 absolute div — SVG preserveAspectRatio='none' 찌그러짐 방지) */}
+            <div className="absolute inset-0 pointer-events-none z-30" style={{ height: 'calc(100% - 24px)' }}>
+              {trendPoints.map((p, i) => (
+                <div
+                  key={`point-${i}`}
+                  className="absolute w-2.5 h-2.5 rounded-full bg-white border-2 border-purple-500 shadow-sm"
+                  style={{
+                    left: `${p.x}%`,
+                    top: `${p.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                />
               ))}
             </div>
 
