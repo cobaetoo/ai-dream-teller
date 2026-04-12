@@ -23,6 +23,7 @@ const AdminDashboardPage = async () => {
   let fetchError = null;
 
   try {
+    /* 기존 DB 연동 로직 주석 처리 (스크린샷용 임시 데이터 사용 중)
     const supabase = createServiceRoleClient();
 
     // 1. 매출 정보 (결제 완료 건만)
@@ -98,12 +99,36 @@ const AdminDashboardPage = async () => {
       totalRevenue,
       revenueGrowth,
       totalOrders,
-      ordersGrowth,
       totalUsers: totalUsers || 0,
       usersGrowth,
       aiUsage: aiUsage || 0,
       aiUsageGrowth,
     };
+    */
+
+    // --- [스크린샷용 임시 더미 데이터 시작] ---
+    METRICS_SUMMARY = {
+      totalRevenue: 12540000,
+      revenueGrowth: 15.2,
+      totalOrders: 1248,
+      ordersGrowth: 8.5,
+      totalUsers: 8420,
+      usersGrowth: 12.4,
+      aiUsage: 3421,
+      aiUsageGrowth: 18.2,
+    };
+
+    MONTHLY_REVENUE = [
+      { month: "9월", value: 850000 },
+      { month: "10월", value: 920000 },
+      { month: "11월", value: 1100000 },
+      { month: "12월", value: 1350000 },
+      { month: "1월", value: 1200000 },
+      { month: "2월", value: 1580000 },
+      { month: "3월", value: 1820000 },
+      { month: "4월", value: 2100000 },
+    ];
+    // --- [스크린샷용 임시 더미 데이터 끝] ---
 
   } catch (error: any) {
     console.error("Admin dashboard query error:", error);
