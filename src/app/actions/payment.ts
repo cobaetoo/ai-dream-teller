@@ -134,17 +134,8 @@ export async function confirmPaymentAction({
     const successMsg = `🎉 <b>결제 성공 알림</b>\n\n- 상품옵션: ${optionName}\n- 유저아이디: ${userIdForNotice}\n- 결제금액: ${amount.toLocaleString()}원\n- 해몽 전문: ${order.expert_field}\n- 꿈내용 일부: <i>"${shortDreamContent}"</i>`;
     await sendTelegramMessage(successMsg);
 
-    // 5. [비동기] AI 해몽 로직 호출 (생성 요청만 던짐)
-    // 배포 환경과 로컬 환경을 모두 지원하기 위해 동적으로 호스트 감지
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    const baseUrl = siteUrl || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-    
-    // 이 호출은 AI 분석을 시작하라는 신호만 보냅니다. (Fire & Forget 가능하도록)
-    fetch(`${baseUrl}/api/ai/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id }),
-    }).catch(err => console.error("AI Generation trigger failed:", err));
+    // 5. [강의용 데모] AI 해몽 로직 호출 생략
+    // 실제 LLM 호출 대신 샘플 해석 페이지로 이동합니다.
 
     return { 
       success: true, 

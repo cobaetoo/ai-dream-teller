@@ -40,12 +40,8 @@ export default async function PaymentSuccessPage({
       );
     }
 
-    // 성공 시 사용자 타입에 따라 리다이렉트
-    if (result.isGuest) {
-      redirect("/guest-check");
-    } else {
-      redirect("/my-page");
-    }
+    // [강의용 데모] 결제 성공 시 샘플 해석 페이지로 리다이렉트
+    redirect("/dream-result/sample");
   } catch (error) {
     if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
       throw error;

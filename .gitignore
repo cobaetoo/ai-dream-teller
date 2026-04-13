@@ -45,3 +45,4 @@ supabase/migrations/.empty/
 *.key
 *.cert
 *.jks
+.gstack/
