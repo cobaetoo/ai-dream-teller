@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Search,
   CalendarDays,
+  GraduationCap,
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/server';
 import { formatDistanceToNow } from 'date-fns';
@@ -64,7 +65,7 @@ const HomePage = async () => {
             어젯밤 꿈을 적으면, 3분 안에 당신만의 꿈 해석 리포트가 완성됩니다.
           </p>
 
-          <div className="pt-4">
+          <div className="pt-4 flex flex-col items-center gap-3">
             <Link href="/dream-teller">
               <Button
                 size="lg"
@@ -72,6 +73,16 @@ const HomePage = async () => {
               >
                 내 꿈 해석 시작하기
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <Link href="/admin-demo">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-slate-200 text-slate-500 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-all cursor-pointer"
+              >
+                <GraduationCap className="w-4 h-4 mr-1.5" />
+                어드민 데모 둘러보기
               </Button>
             </Link>
           </div>

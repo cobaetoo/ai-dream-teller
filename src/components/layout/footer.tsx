@@ -20,6 +20,7 @@ const Footer = () => {
           <Link href="/terms" className="hover:text-purple-600 transition-colors">이용약관</Link>
           <Link href="/privacy" className="hover:text-pink-600 transition-colors">개인정보처리방침</Link>
           <Link href="/contact" className="hover:text-blue-600 transition-colors">문의하기</Link>
+          <Link href="/admin-demo" className="hover:text-amber-600 transition-colors">어드민 데모</Link>
           <p className="mt-4 text-xs">문의 메일: support@aidreamteller.com</p>
         </div>
       </div>
