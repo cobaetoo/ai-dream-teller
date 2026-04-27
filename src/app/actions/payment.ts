@@ -34,9 +34,10 @@ export async function confirmPaymentAction({
     }
 
     let isGuestOrder = false;
+    let isAdmin = false;
     let userIdForNotice = order.user_id || "비회원";
-    
-    // 권한 확인: 
+
+    // 권한 확인:
     // - 회원 주문인 경우: 로그인한 유저와 주문의 user_id가 일치해야 함
     // - 비회원 주문인 경우: 별도의 세션 체크가 어렵지만 결제 성공 key가 있으므로 진행 (추후 고도화 가능)
     if (order.user_id) {
@@ -46,10 +47,14 @@ export async function confirmPaymentAction({
          .select("id, role")
          .eq("id", order.user_id)
          .single();
-       
+
        if (orderOwner?.role === 'guest') {
          isGuestOrder = true;
          userIdForNotice = `비회원(${maskUserId(orderOwner.id)})`;
+       }
+
+       if (orderOwner?.role === 'admin') {
+         isAdmin = true;
        }
 
        if (orderOwner?.role === 'member' && (!user || user.id !== order.user_id)) {
@@ -134,13 +139,15 @@ export async function confirmPaymentAction({
     const successMsg = `🎉 <b>결제 성공 알림</b>\n\n- 상품옵션: ${optionName}\n- 유저아이디: ${userIdForNotice}\n- 결제금액: ${amount.toLocaleString()}원\n- 해몽 전문: ${order.expert_field}\n- 꿈내용 일부: <i>"${shortDreamContent}"</i>`;
     await sendTelegramMessage(successMsg);
 
-    // 5. [강의용 데모] AI 해몽 로직 호출 생략
-    // 실제 LLM 호출 대신 샘플 해석 페이지로 이동합니다.
+    // 5. [강의용 데모] admin이 아닌 경우 AI 해몽 로직 호출 생략
+    // admin인 경우 실제 AI 해석이 진행됩니다.
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: tossData,
-      isGuest: isGuestOrder
+      isGuest: isGuestOrder,
+      orderId: order.id,
+      isAdmin,
     };
   } catch (error) {
     console.error("Payment Confirmation Critical Error:", error);

@@ -40,8 +40,23 @@ export default async function PaymentSuccessPage({
       );
     }
 
-    // [강의용 데모] 결제 성공 시 샘플 해석 페이지로 리다이렉트
-    redirect("/dream-result/sample");
+    // admin 계정: 실제 AI 해석 진행 후 결과 페이지로 이동
+    // 일반 계정: [강의용 데모] 샘플 해석 페이지로 리다이렉트
+    if (result.isAdmin && result.orderId) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      try {
+        await fetch(`${siteUrl}/api/ai/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: result.orderId }),
+        });
+      } catch (aiError) {
+        console.error("AI generation failed for admin user:", aiError);
+      }
+      redirect(`/dream-result/${result.orderId}`);
+    } else {
+      redirect("/dream-result/sample");
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
       throw error;
