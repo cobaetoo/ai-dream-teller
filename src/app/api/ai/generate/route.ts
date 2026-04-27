@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
         const translatorModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
         
         const promptGenResponse = await translatorModel.generateContent(
-          `다음 해몽 텍스트를 바탕으로, AI 이미지 생성기에 넣을 고품질의 영어 프롬프트 딱 1문장만 작성해 줘. 부가 설명이나 따옴표 없이 프롬프트 문장만 답해라.\n\n해몽: ${analysisContent}`
+          `다음 꿈 내용과 해몽 분석을 바탕으로, AI 이미지 생성기에 넣을 고품질의 영어 프롬프트 딱 1문장만 작성해 줘. 꿈에 등장한 구체적인 장면, 인물, 색상, 분위기를 시각적으로 표현하되 추상적인 심리 용어는 피하고 실제 장면처럼 묘사해. 부가 설명이나 따옴표 없이 프롬프트 문장만 답해라.\n\n꿈 내용: ${order.dream_content}\n\n해몽 분석: ${analysisContent}`
         );
         const imagePrompt = promptGenResponse.response.text().trim().replace(/['"]/g, "").replace(/\n/g, " ");
 
