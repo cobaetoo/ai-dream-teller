@@ -40,20 +40,19 @@ export default async function PaymentSuccessPage({
       );
     }
 
-    // admin 계정: 실제 AI 해석 진행 후 결과 페이지로 이동
+    // admin 계정: AI 해석을 백그라운드에서 비동기 요청 후 마이페이지로 이동
     // 일반 계정: [강의용 데모] 샘플 해석 페이지로 리다이렉트
     if (result.isAdmin && result.orderId) {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-      try {
-        await fetch(`${siteUrl}/api/ai/generate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: result.orderId }),
-        });
-      } catch (aiError) {
+      // fire-and-forget: AI 생성 완료를 기다리지 않고 즉시 리다이렉트
+      fetch(`${siteUrl}/api/ai/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: result.orderId }),
+      }).catch((aiError) => {
         console.error("AI generation failed for admin user:", aiError);
-      }
-      redirect(`/dream-result/${result.orderId}`);
+      });
+      redirect("/my-page");
     } else {
       redirect("/dream-result/sample");
     }
