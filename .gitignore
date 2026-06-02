@@ -46,3 +46,6 @@ supabase/migrations/.empty/
 *.cert
 *.jks
 .gstack/
+
+# typescript build cache
+*.tsbuildinfo
